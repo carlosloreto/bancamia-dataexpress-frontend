@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { initialFormData } from "@/lib/types";
@@ -9,6 +9,21 @@ import { storageService } from "@/lib/storage";
 export default function Home() {
   const [formData, setFormData] = useState(initialFormData);
   const [enviado, setEnviado] = useState(false);
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch('http://localhost:3000/api/v1/users')
+      .then(res => res.json())
+      .then(data => {
+        setUsers(data.data);
+        setLoading(false);
+      })
+      .catch(error => {
+        console.error('Error fetching users:', error);
+        setLoading(false);
+      });
+  }, []);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
@@ -81,6 +96,29 @@ export default function Home() {
           </div>
         </div>
       </header>
+
+      {/* Sección de prueba de API */}
+      <div className="bg-yellow-100 border-l-4 border-yellow-500 p-6 m-4">
+        <h2 className="text-2xl font-bold text-gray-800 mb-4">TEST - API Express</h2>
+        {loading ? (
+          <p className="text-gray-600">Cargando usuarios...</p>
+        ) : (
+          <div>
+            <p className="text-gray-700 mb-3">
+              <strong>Total de usuarios:</strong> {users.length}
+            </p>
+            <div className="bg-white rounded-lg shadow p-4 max-h-60 overflow-y-auto">
+              {users.map((user: any) => (
+                <div key={user.id} className="border-b border-gray-200 py-2 last:border-b-0">
+                  <p className="text-gray-800">
+                    <span className="font-semibold">{user.name}</span> - {user.email}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Banner con gradiente azul mejorado */}
       <div className="relative bg-gradient-to-br from-[#1E3A5F] via-[#2D5F8D] to-[#1E3A5F] text-white py-16 overflow-hidden">
