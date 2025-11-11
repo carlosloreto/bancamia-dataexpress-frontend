@@ -1,123 +1,80 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { initialFormData } from "@/lib/types";
-import { enviarSolicitudCredito } from "@/lib/api";
+import { initialFormData, AutorizacionDatos } from "@/lib/types";
+import { ciudadesNegocio } from "@/lib/ciudades-negocio";
+import { autorizacionTratamientoDatos, autorizacionContacto } from "@/lib/authorizations";
 
 export default function Home() {
-  const [formData, setFormData] = useState(initialFormData);
+  const [formData, setFormData] = useState<AutorizacionDatos>(initialFormData);
   const [enviado, setEnviado] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [solicitudId, setSolicitudId] = useState<string | null>(null);
+  const [mostrarAutorizacionCompleta, setMostrarAutorizacionCompleta] = useState(false);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
   ) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    const { name, value, type } = e.target;
+    const checked = (e.target as HTMLInputElement).checked;
+    
+    if (type === 'checkbox') {
+      setFormData((prev) => ({ ...prev, [name]: checked }));
+    } else {
+      setFormData((prev) => ({ ...prev, [name]: value }));
+    }
   };
 
   // Función para llenar el formulario con datos de prueba
   const llenarDatosPrueba = () => {
-    // Calcular fecha de nacimiento para que sea mayor de 18 años
     const hoy = new Date();
     const fechaNacimiento = new Date(hoy.getFullYear() - 25, hoy.getMonth(), hoy.getDate());
-    const fechaNacimientoStr = fechaNacimiento.toISOString().split('T')[0];
-
+    const fechaExpedicion = new Date(hoy.getFullYear() - 5, hoy.getMonth(), hoy.getDate());
+    
     setFormData({
-      // Información Personal
+      email: "juan.perez@email.com",
+      autorizacionTratamientoDatos: true,
+      autorizacionContacto: true,
       nombreCompleto: "Juan Pérez García",
       tipoDocumento: "CC",
       numeroDocumento: "1234567890",
-      fechaNacimiento: fechaNacimientoStr,
-      estadoCivil: "soltero",
-      genero: "masculino",
-      telefono: "3001234567",
-      email: "juan.perez@email.com",
-      direccion: "Calle 123 #45-67",
-      ciudad: "Bogotá",
-      departamento: "Cundinamarca",
-      
-      // Información Laboral
-      ocupacion: "Ingeniero de Software",
-      empresa: "Tech Solutions S.A.S",
-      cargoActual: "Desarrollador Senior",
-      tipoContrato: "indefinido",
-      ingresosMensuales: "5000000",
-      tiempoEmpleo: "2a5",
-      
-      // Información del Crédito
-      montoSolicitado: "20000000",
-      plazoMeses: "36",
-      proposito: "Compra de vehículo para uso personal y laboral",
-      tieneDeudas: "si",
-      montoDeudas: "3000000",
-      
-      // Referencias
-      refNombre1: "María López",
-      refTelefono1: "3009876543",
-      refRelacion1: "Hermana",
-      refNombre2: "Carlos Rodríguez",
-      refTelefono2: "3158765432",
-      refRelacion2: "Amigo",
+      fechaNacimiento: fechaNacimiento.toISOString().split('T')[0],
+      fechaExpedicionDocumento: fechaExpedicion.toISOString().split('T')[0],
+      ciudadNegocio: "201", // Plaza Minorista
+      direccionNegocio: "Calle 123 #45-67",
+      celularNegocio: "3001234567",
     });
 
-    // Limpiar errores y mensajes previos
     setError(null);
     setEnviado(false);
-    setSolicitudId(null);
-
-    // Scroll suave al formulario
-    setTimeout(() => {
-      const formElement = document.querySelector('form');
-      if (formElement) {
-        formElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }
-    }, 100);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Limpiar errores previos
+    // Validar autorizaciones
+    if (!formData.autorizacionTratamientoDatos || !formData.autorizacionContacto) {
+      setError("Debe aceptar todas las autorizaciones para continuar.");
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
     setError(null);
-    setSolicitudId(null);
     setIsLoading(true);
     
     try {
-      // Enviar solicitud a la API
-      const resultado = await enviarSolicitudCredito(formData);
+      // Aquí iría la llamada a la API
+      // Por ahora simulamos el envío
+      await new Promise(resolve => setTimeout(resolve, 1500));
       
-      if (resultado.success) {
-        // Éxito: mostrar mensaje con ID
-        setSolicitudId(resultado.id || null);
-        setEnviado(true);
-        
-        // Resetear el formulario después de 3 segundos
-        setTimeout(() => {
-          setFormData(initialFormData);
-          setEnviado(false);
-          setSolicitudId(null);
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-        }, 5000);
-      } else {
-        // Error: mostrar mensajes de error
-        const mensajeError = resultado.errors && resultado.errors.length > 0
-          ? resultado.errors.map(e => e.message).join('. ')
-          : resultado.message;
-        
-        // Si es timeout, agregar nota especial
-        let mensajeFinal = mensajeError;
-        if (resultado.message && resultado.message.includes('tardando más')) {
-          mensajeFinal = mensajeError + '\n\n⚠️ Nota: La solicitud puede haberse procesado correctamente en el servidor a pesar del timeout. Por favor verifica.';
-        }
-        
-        setError(mensajeFinal);
+      setEnviado(true);
+      setTimeout(() => {
+        setFormData(initialFormData);
+        setEnviado(false);
         window.scrollTo({ top: 0, behavior: 'smooth' });
-      }
+      }, 5000);
     } catch (error) {
       console.error("Error al enviar el formulario:", error);
       setError("Hubo un error inesperado al enviar el formulario. Por favor intenta de nuevo.");
@@ -146,22 +103,22 @@ export default function Home() {
               </div>
               <div className="hidden md:block h-16 w-px bg-gray-300"></div>
               <div className="flex items-center">
-        <Image
+                <Image
                   src="/FMF.png"
                   alt="Fundación BBVA Microfinanzas"
                   width={300}
                   height={75}
-          priority
+                  priority
                   className="h-auto w-auto max-h-16"
                 />
               </div>
             </div>
             <Link
-              href="/admin"
+              href="/admin/login"
               className="px-6 py-3 bg-[#1E3A5F] hover:bg-[#2D5F8D] text-white font-semibold rounded-lg transition-all duration-200 flex items-center space-x-2"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
               </svg>
               <span>Admin</span>
             </Link>
@@ -169,37 +126,92 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Banner con gradiente azul mejorado */}
-      <div className="relative bg-gradient-to-br from-[#1E3A5F] via-[#2D5F8D] to-[#1E3A5F] text-white py-16 overflow-hidden">
-        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAxMCAwIEwgMCAwIDAgMTAiIGZpbGw9Im5vbmUiIHN0cm9rZT0id2hpdGUiIHN0cm9rZS1vcGFjaXR5PSIwLjA1IiBzdHJva2Utd2lkdGg9IjEiLz48L3BhdHRlcm4+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9InVybCgjZ3JpZCkiLz48L3N2Zz4=')] opacity-30"></div>
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <div className="inline-block mb-4">
-            <span className="px-4 py-2 bg-[#FF9B2D] rounded-full text-sm font-semibold shadow-lg">
-              💼 Solicitud de Crédito
-            </span>
+      {/* Banner Mejorado */}
+      <div className="relative text-white py-16 md:py-20 overflow-hidden">
+        {/* Imagen de fondo con blur */}
+        <div 
+          className="absolute inset-0 z-0"
+          style={{
+            backgroundImage: `url('/unnamed (3).jpg')`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            backgroundRepeat: 'no-repeat',
+            filter: 'blur(15px)',
+            transform: 'scale(1.05)',
+            zIndex: 0,
+          }}
+        ></div>
+        
+        {/* Overlay oscuro suave para legibilidad (reducido para que se vea la imagen) */}
+        <div className="absolute inset-0 bg-gradient-to-br from-[#1E3A5F]/60 via-[#2D5F8D]/50 to-[#1E3A5F]/60 z-10"></div>
+        
+        {/* Patrón de fondo decorativo sutil */}
+        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAxMCAwIEwgMCAwIDAgMTAiIGZpbGw9Im5vbmUiIHN0cm9rZT0id2hpdGUiIHN0cm9rZS1vcGFjaXR5PSIwLjA1IiBzdHJva2Utd2lkdGg9IjEiLz48L3BhdHRlcm4+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9InVybCgjZ3JpZCkiLz48L3N2Zz4=')] opacity-5 z-10"></div>
+        
+        {/* Círculos decorativos de fondo */}
+        <div className="absolute top-0 left-0 w-96 h-96 bg-[#FF9B2D] rounded-full mix-blend-multiply filter blur-3xl opacity-10 animate-blob z-10"></div>
+        <div className="absolute top-0 right-0 w-96 h-96 bg-[#2D5F8D] rounded-full mix-blend-multiply filter blur-3xl opacity-10 animate-blob animation-delay-2000 z-10"></div>
+        <div className="absolute -bottom-8 left-1/2 w-96 h-96 bg-[#FFB85C] rounded-full mix-blend-multiply filter blur-3xl opacity-10 animate-blob animation-delay-4000 z-10"></div>
+        
+        {/* Contenido del banner */}
+        <div className="relative max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 z-20">
+          <div className="text-center">
+            {/* Título principal */}
+            <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold mb-4 leading-tight">
+              <span className="block text-white drop-shadow-2xl mb-2">
+                Autorización de Datos
+              </span>
+              <span className="block bg-gradient-to-r from-[#FF9B2D] via-[#FFB85C] to-[#FF9B2D] bg-clip-text text-transparent drop-shadow-lg animate-gradient text-3xl md:text-4xl lg:text-5xl">
+                ¡Tu crédito te espera!
+              </span>
+            </h1>
+
+            {/* Descripción */}
+            <div className="max-w-3xl mx-auto mb-8">
+              <p className="text-base md:text-lg text-blue-100 leading-relaxed px-2">
+                Completa el formulario para autorizar la consulta en centrales de riesgo.
+              </p>
+            </div>
+
+            {/* Indicadores visuales */}
+            <div className="flex flex-wrap items-center justify-center gap-6 mt-8 text-sm md:text-base">
+              <div className="flex items-center space-x-2 bg-white/10 backdrop-blur-sm px-4 py-2 rounded-lg">
+                <svg className="w-5 h-5 text-[#FF9B2D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+                <span className="text-blue-100">Datos Seguros</span>
+              </div>
+              <div className="flex items-center space-x-2 bg-white/10 backdrop-blur-sm px-4 py-2 rounded-lg">
+                <svg className="w-5 h-5 text-[#FF9B2D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                <span className="text-blue-100">Proceso Rápido</span>
+              </div>
+              <div className="flex items-center space-x-2 bg-white/10 backdrop-blur-sm px-4 py-2 rounded-lg">
+                <svg className="w-5 h-5 text-[#FF9B2D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                </svg>
+                <span className="text-blue-100">Confidencial</span>
+              </div>
+            </div>
           </div>
-          <h2 className="text-4xl md:text-6xl font-bold mb-6 drop-shadow-lg">
-            Tu Crédito Está <span className="text-[#FF9B2D]">a un Paso</span>
-          </h2>
-          <p className="text-xl md:text-2xl text-blue-100 max-w-3xl mx-auto leading-relaxed">
-            El Banco de los que creen. Complete el formulario y haga realidad sus proyectos.
-          </p>
         </div>
+
       </div>
 
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         {/* Mensaje de error */}
         {error && (
-          <div className="mb-8 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-2xl shadow-xl p-8 animate-fade-in">
+          <div className="mb-8 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-2xl shadow-xl p-6 animate-fade-in">
             <div className="flex items-start space-x-4">
-              <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center flex-shrink-0">
+              <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center flex-shrink-0">
                 <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </div>
               <div className="flex-1">
-                <h3 className="text-xl font-bold mb-2">Error al Enviar la Solicitud</h3>
-                <p className="text-red-100">{error}</p>
+                <h3 className="text-lg font-bold mb-1">Error al Enviar</h3>
+                <p className="text-red-100 text-sm">{error}</p>
               </div>
               <button
                 onClick={() => setError(null)}
@@ -216,19 +228,16 @@ export default function Home() {
 
         {/* Mensaje de éxito */}
         {enviado && (
-          <div className="mb-8 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-2xl shadow-xl p-8 animate-fade-in">
+          <div className="mb-8 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-2xl shadow-xl p-6 animate-fade-in">
             <div className="flex items-center justify-center space-x-4">
-              <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center">
-                <svg className="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center">
+                <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                 </svg>
               </div>
               <div>
-                <h3 className="text-2xl font-bold mb-1">¡Solicitud Enviada Exitosamente!</h3>
-                <p className="text-green-100">
-                  Tu solicitud ha sido registrada con el ID: <strong className="font-bold">{solicitudId || 'N/A'}</strong>
-                </p>
-                <p className="text-green-100 mt-2">Pronto nos pondremos en contacto contigo.</p>
+                <h3 className="text-xl font-bold mb-1">¡Autorización Enviada Exitosamente!</h3>
+                <p className="text-green-100">Tu autorización ha sido registrada correctamente.</p>
               </div>
             </div>
           </div>
@@ -242,7 +251,6 @@ export default function Home() {
               type="button"
               onClick={llenarDatosPrueba}
               className="px-5 py-2.5 bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 text-blue-700 text-sm font-semibold rounded-lg transition-all duration-200 flex items-center space-x-2 border border-blue-200 shadow-sm hover:shadow-md"
-              title="Llenar formulario con datos de prueba para testing"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
@@ -252,23 +260,20 @@ export default function Home() {
           </div>
 
           {/* Información Personal */}
-          <div className="mb-12">
-            <div className="flex items-center mb-8">
-              <div className="flex items-center justify-center w-12 h-12 rounded-full bg-gradient-to-br from-[#FF9B2D] to-[#FFB85C] text-white font-bold text-xl shadow-lg mr-4">
+          <div className="mb-8">
+            <div className="flex items-center mb-6">
+              <div className="flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-br from-[#FF9B2D] to-[#FFB85C] text-white font-bold text-lg shadow-lg mr-3">
                 1
               </div>
-              <div>
-                <h2 className="text-2xl font-bold text-[#1E3A5F]">
-                  Información Personal
-                </h2>
-                <p className="text-sm text-gray-500">Datos básicos del solicitante</p>
-              </div>
+              <h2 className="text-xl font-bold text-[#1E3A5F]">
+                Información Personal
+              </h2>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Nombre Completo *
+                  Nombre Completo <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -281,9 +286,34 @@ export default function Home() {
                 />
               </div>
 
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Email <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="email"
+                  name="email"
+                  value={formData.email}
+                  onChange={handleChange}
+                  required
+                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg text-gray-800 focus:ring-2 focus:ring-[#FF9B2D] focus:border-[#FF9B2D] transition-all"
+                  placeholder="correo@ejemplo.com"
+                />
+                <div className="mt-2 flex items-center">
+                  <input
+                    type="checkbox"
+                    id="recordEmail"
+                    className="h-4 w-4 text-[#FF9B2D] focus:ring-[#FF9B2D] border-gray-300 rounded"
+                  />
+                  <label htmlFor="recordEmail" className="ml-2 text-sm text-gray-600">
+                    Recordar mi dirección de email con mi respuesta
+                  </label>
+                </div>
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Tipo de Documento *
+                  Tipo de Documento <span className="text-red-500">*</span>
                 </label>
                 <select
                   name="tipoDocumento"
@@ -295,13 +325,14 @@ export default function Home() {
                   <option value="CC">Cédula de Ciudadanía</option>
                   <option value="CE">Cédula de Extranjería</option>
                   <option value="PA">Pasaporte</option>
-                  <option value="TI">Tarjeta de Identidad</option>
+                  <option value="PEP">Permiso Especial de Permanencia</option>
+                  <option value="PPP">Permiso de Protección Personal</option>
                 </select>
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Número de Documento *
+                  Número de Documento <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -316,7 +347,7 @@ export default function Home() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Fecha de Nacimiento *
+                  Fecha de Nacimiento <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="date"
@@ -330,80 +361,60 @@ export default function Home() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Estado Civil *
+                  Fecha de Expedición del Documento <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="date"
+                  name="fechaExpedicionDocumento"
+                  value={formData.fechaExpedicionDocumento}
+                  onChange={handleChange}
+                  required
+                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg text-gray-800 focus:ring-2 focus:ring-[#FF9B2D] focus:border-[#FF9B2D] transition-all"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Información de Negocio */}
+          <div className="mb-8">
+            <div className="flex items-center mb-6">
+              <div className="flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-br from-[#1E3A5F] to-[#2D5F8D] text-white font-bold text-lg shadow-lg mr-3">
+                2
+              </div>
+              <h2 className="text-xl font-bold text-[#1E3A5F]">
+                Información de Negocio
+              </h2>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Ciudad de Negocio <span className="text-red-500">*</span>
                 </label>
                 <select
-                  name="estadoCivil"
-                  value={formData.estadoCivil}
+                  name="ciudadNegocio"
+                  value={formData.ciudadNegocio}
                   onChange={handleChange}
                   required
                   className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg text-gray-800 focus:ring-2 focus:ring-[#FF9B2D] focus:border-[#FF9B2D] transition-all"
                 >
-                  <option value="" className="text-gray-500">Seleccione una opción...</option>
-                  <option value="soltero">Soltero(a)</option>
-                  <option value="casado">Casado(a)</option>
-                  <option value="union">Unión Libre</option>
-                  <option value="divorciado">Divorciado(a)</option>
-                  <option value="viudo">Viudo(a)</option>
+                  <option value="">Seleccione una ciudad...</option>
+                  {ciudadesNegocio.map((ciudad) => (
+                    <option key={ciudad.codigo} value={ciudad.codigo}>
+                      {ciudad.codigo} - {ciudad.nombre}
+                    </option>
+                  ))}
                 </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Género *
-                </label>
-                <select
-                  name="genero"
-                  value={formData.genero}
-                  onChange={handleChange}
-                  required
-                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg text-gray-800 focus:ring-2 focus:ring-[#FF9B2D] focus:border-[#FF9B2D] transition-all"
-                >
-                  <option value="" className="text-gray-500">Seleccione una opción...</option>
-                  <option value="masculino">Masculino</option>
-                  <option value="femenino">Femenino</option>
-                  <option value="otro">Otro</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Teléfono *
-                </label>
-                <input
-                  type="tel"
-                  name="telefono"
-                  value={formData.telefono}
-                  onChange={handleChange}
-                  required
-                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg text-gray-800 focus:ring-2 focus:ring-[#FF9B2D] focus:border-[#FF9B2D] transition-all"
-                  placeholder="3001234567"
-                />
               </div>
 
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Email *
-                </label>
-                <input
-                  type="email"
-                  name="email"
-                  value={formData.email}
-                  onChange={handleChange}
-                  required
-                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg text-gray-800 focus:ring-2 focus:ring-[#FF9B2D] focus:border-[#FF9B2D] transition-all"
-                  placeholder="correo@ejemplo.com"
-                />
-              </div>
-
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Dirección *
+                  Dirección de Negocio <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
-                  name="direccion"
-                  value={formData.direccion}
+                  name="direccionNegocio"
+                  value={formData.direccionNegocio}
                   onChange={handleChange}
                   required
                   className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg text-gray-800 focus:ring-2 focus:ring-[#FF9B2D] focus:border-[#FF9B2D] transition-all"
@@ -411,392 +422,98 @@ export default function Home() {
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Ciudad *
-                </label>
-                <input
-                  type="text"
-                  name="ciudad"
-                  value={formData.ciudad}
-                  onChange={handleChange}
-                  required
-                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg text-gray-800 focus:ring-2 focus:ring-[#FF9B2D] focus:border-[#FF9B2D] transition-all"
-                  placeholder="Bogotá"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Departamento *
-                </label>
-                <input
-                  type="text"
-                  name="departamento"
-                  value={formData.departamento}
-                  onChange={handleChange}
-                  required
-                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg text-gray-800 focus:ring-2 focus:ring-[#FF9B2D] focus:border-[#FF9B2D] transition-all"
-                  placeholder="Cundinamarca"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Información Laboral */}
-          <div className="mb-12">
-            <div className="flex items-center mb-8">
-              <div className="flex items-center justify-center w-12 h-12 rounded-full bg-gradient-to-br from-[#1E3A5F] to-[#2D5F8D] text-white font-bold text-xl shadow-lg mr-4">
-                2
-              </div>
-              <div>
-                <h2 className="text-2xl font-bold text-[#1E3A5F]">
-                  Información Laboral
-                </h2>
-                <p className="text-sm text-gray-500">Detalles de tu actividad económica</p>
-              </div>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Ocupación/Profesión *
-                </label>
-                <input
-                  type="text"
-                  name="ocupacion"
-                  value={formData.ocupacion}
-                  onChange={handleChange}
-                  required
-                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg text-gray-800 focus:ring-2 focus:ring-[#FF9B2D] focus:border-[#FF9B2D] transition-all"
-                  placeholder="Ingeniero de Sistemas"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Empresa *
-                </label>
-                <input
-                  type="text"
-                  name="empresa"
-                  value={formData.empresa}
-                  onChange={handleChange}
-                  required
-                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg text-gray-800 focus:ring-2 focus:ring-[#FF9B2D] focus:border-[#FF9B2D] transition-all"
-                  placeholder="ABC Tech S.A.S."
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Cargo Actual *
-                </label>
-                <input
-                  type="text"
-                  name="cargoActual"
-                  value={formData.cargoActual}
-                  onChange={handleChange}
-                  required
-                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg text-gray-800 focus:ring-2 focus:ring-[#FF9B2D] focus:border-[#FF9B2D] transition-all"
-                  placeholder="Desarrollador Senior"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Tipo de Contrato *
-                </label>
-                <select
-                  name="tipoContrato"
-                  value={formData.tipoContrato}
-                  onChange={handleChange}
-                  required
-                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg text-gray-800 focus:ring-2 focus:ring-[#FF9B2D] focus:border-[#FF9B2D] transition-all"
-                >
-                  <option value="" className="text-gray-500">Seleccione una opción...</option>
-                  <option value="indefinido">Término Indefinido</option>
-                  <option value="fijo">Término Fijo</option>
-                  <option value="prestacion">Prestación de Servicios</option>
-                  <option value="independiente">Trabajador Independiente</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Ingresos Mensuales (COP) *
-                </label>
-                <input
-                  type="number"
-                  name="ingresosMensuales"
-                  value={formData.ingresosMensuales}
-                  onChange={handleChange}
-                  required
-                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg text-gray-800 focus:ring-2 focus:ring-[#FF9B2D] focus:border-[#FF9B2D] transition-all"
-                  placeholder="5000000"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Tiempo en el Empleo *
-                </label>
-                <select
-                  name="tiempoEmpleo"
-                  value={formData.tiempoEmpleo}
-                  onChange={handleChange}
-                  required
-                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg text-gray-800 focus:ring-2 focus:ring-[#FF9B2D] focus:border-[#FF9B2D] transition-all"
-                >
-                  <option value="" className="text-gray-500">Seleccione una opción...</option>
-                  <option value="menos6">Menos de 6 meses</option>
-                  <option value="6a12">6 a 12 meses</option>
-                  <option value="1a2">1 a 2 años</option>
-                  <option value="2a5">2 a 5 años</option>
-                  <option value="mas5">Más de 5 años</option>
-                </select>
-              </div>
-            </div>
-          </div>
-
-          {/* Información del Crédito */}
-          <div className="mb-12">
-            <div className="flex items-center mb-8">
-              <div className="flex items-center justify-center w-12 h-12 rounded-full bg-gradient-to-br from-[#FF9B2D] to-[#FFB85C] text-white font-bold text-xl shadow-lg mr-4">
-                3
-              </div>
-              <div>
-                <h2 className="text-2xl font-bold text-[#1E3A5F]">
-                  Información del Crédito
-                </h2>
-                <p className="text-sm text-gray-500">Detalles de tu solicitud de crédito</p>
-              </div>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Monto Solicitado (COP) *
-                </label>
-                <input
-                  type="number"
-                  name="montoSolicitado"
-                  value={formData.montoSolicitado}
-                  onChange={handleChange}
-                  required
-                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg text-gray-800 focus:ring-2 focus:ring-[#FF9B2D] focus:border-[#FF9B2D] transition-all"
-                  placeholder="10000000"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Plazo (Meses) *
-                </label>
-                <select
-                  name="plazoMeses"
-                  value={formData.plazoMeses}
-                  onChange={handleChange}
-                  required
-                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg text-gray-800 focus:ring-2 focus:ring-[#FF9B2D] focus:border-[#FF9B2D] transition-all"
-                >
-                  <option value="" className="text-gray-500">Seleccione una opción...</option>
-                  <option value="12">12 meses</option>
-                  <option value="24">24 meses</option>
-                  <option value="36">36 meses</option>
-                  <option value="48">48 meses</option>
-                  <option value="60">60 meses</option>
-                  <option value="72">72 meses</option>
-                </select>
-              </div>
-
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Propósito del Crédito *
+                  Número de Celular de Negocio <span className="text-red-500">*</span>
                 </label>
-                <textarea
-                  name="proposito"
-                  value={formData.proposito}
+                <input
+                  type="tel"
+                  name="celularNegocio"
+                  value={formData.celularNegocio}
                   onChange={handleChange}
                   required
-                  rows={3}
                   className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg text-gray-800 focus:ring-2 focus:ring-[#FF9B2D] focus:border-[#FF9B2D] transition-all"
-                  placeholder="Describa el propósito del crédito (ej: compra de vivienda, vehículo, educación, etc.)"
+                  placeholder="3001234567"
                 />
               </div>
+            </div>
+          </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  ¿Tiene Deudas Actualmente? *
+          {/* Términos y Condiciones / Autorizaciones */}
+          <div className="mb-8 pt-6 border-t-2 border-gray-200">
+            <div className="flex items-center mb-6">
+              <div className="flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-br from-[#1E3A5F] to-[#2D5F8D] text-white font-bold text-lg shadow-lg mr-3">
+                3
+              </div>
+              <h2 className="text-xl font-bold text-[#1E3A5F]">
+                Autorizaciones y Términos
+              </h2>
+            </div>
+
+            {/* Autorización Tratamiento de Datos */}
+            <div className="mb-6 p-6 bg-gradient-to-br from-blue-50 to-gray-50 rounded-xl border-2 border-blue-200">
+              <div className="mb-4">
+                <label className="flex items-start space-x-3 cursor-pointer group">
+                  <input
+                    type="checkbox"
+                    name="autorizacionTratamientoDatos"
+                    checked={formData.autorizacionTratamientoDatos}
+                    onChange={handleChange}
+                    required
+                    className="mt-1 h-5 w-5 text-[#FF9B2D] focus:ring-[#FF9B2D] border-gray-300 rounded transition-all flex-shrink-0"
+                  />
+                  <div className="flex-1">
+                    <span className="text-sm font-semibold text-[#1E3A5F] group-hover:text-gray-900 transition-colors">
+                      Autorización de Tratamiento de Datos Personales <span className="text-red-500">*</span>
+                    </span>
+                    <div className="mt-2 text-xs text-gray-600 leading-relaxed">
+                      {mostrarAutorizacionCompleta ? (
+                        <div className="space-y-2 max-h-96 overflow-y-auto pr-2">
+                          <p className="whitespace-pre-line">{autorizacionTratamientoDatos}</p>
+                          <button
+                            type="button"
+                            onClick={() => setMostrarAutorizacionCompleta(false)}
+                            className="text-[#FF9B2D] hover:text-[#E6881A] font-semibold"
+                          >
+                            Ver menos
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          <p className="line-clamp-3">
+                            {autorizacionTratamientoDatos.substring(0, 200)}...
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => setMostrarAutorizacionCompleta(true)}
+                            className="text-[#FF9B2D] hover:text-[#E6881A] font-semibold mt-1"
+                          >
+                            Leer autorización completa
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
                 </label>
-                <select
-                  name="tieneDeudas"
-                  value={formData.tieneDeudas}
+              </div>
+            </div>
+
+            {/* Autorización Contacto */}
+            <div className="mb-6 p-6 bg-gradient-to-br from-blue-50 to-gray-50 rounded-xl border-2 border-blue-200">
+              <label className="flex items-start space-x-3 cursor-pointer group">
+                <input
+                  type="checkbox"
+                  name="autorizacionContacto"
+                  checked={formData.autorizacionContacto}
                   onChange={handleChange}
                   required
-                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg text-gray-800 focus:ring-2 focus:ring-[#FF9B2D] focus:border-[#FF9B2D] transition-all"
-                >
-                  <option value="no">No</option>
-                  <option value="si">Sí</option>
-                </select>
-              </div>
-
-              {formData.tieneDeudas === "si" && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Monto Total de Deudas (COP)
-                  </label>
-                  <input
-                    type="number"
-                    name="montoDeudas"
-                    value={formData.montoDeudas}
-                    onChange={handleChange}
-                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg text-gray-800 focus:ring-2 focus:ring-[#FF9B2D] focus:border-[#FF9B2D] transition-all"
-                    placeholder="2000000"
-                  />
-                </div>
-              )}
+                  className="mt-1 h-5 w-5 text-[#FF9B2D] focus:ring-[#FF9B2D] border-gray-300 rounded transition-all flex-shrink-0"
+                />
+                <span className="text-sm text-gray-700 leading-relaxed group-hover:text-gray-900 transition-colors">
+                  <strong className="text-[#1E3A5F]">{autorizacionContacto}</strong> <span className="text-red-500">*</span>
+                </span>
+              </label>
             </div>
-          </div>
-
-          {/* Referencias */}
-          <div className="mb-12">
-            <div className="flex items-center mb-8">
-              <div className="flex items-center justify-center w-12 h-12 rounded-full bg-gradient-to-br from-[#1E3A5F] to-[#2D5F8D] text-white font-bold text-xl shadow-lg mr-4">
-                4
-              </div>
-              <div>
-                <h2 className="text-2xl font-bold text-[#1E3A5F]">
-                  Referencias Personales
-                </h2>
-                <p className="text-sm text-gray-500">Personas que puedan dar referencias sobre ti</p>
-              </div>
-            </div>
-            
-            <div className="space-y-6">
-              {/* Referencia 1 */}
-              <div className="p-6 bg-gradient-to-br from-gray-50 to-white rounded-xl border-2 border-gray-200 hover:border-[#FF9B2D] transition-all duration-300 shadow-md">
-                <div className="flex items-center mb-4">
-                  <div className="w-10 h-10 bg-[#FF9B2D] rounded-full flex items-center justify-center text-white font-bold mr-3">
-                    1
-                  </div>
-                  <h3 className="text-lg font-bold text-gray-700">Primera Referencia</h3>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Nombre Completo *
-                    </label>
-                    <input
-                      type="text"
-                      name="refNombre1"
-                      value={formData.refNombre1}
-                      onChange={handleChange}
-                      required
-                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg text-gray-800 focus:ring-2 focus:ring-[#FF9B2D] focus:border-[#FF9B2D] transition-all"
-                      placeholder="María González"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Teléfono *
-                    </label>
-                    <input
-                      type="tel"
-                      name="refTelefono1"
-                      value={formData.refTelefono1}
-                      onChange={handleChange}
-                      required
-                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg text-gray-800 focus:ring-2 focus:ring-[#FF9B2D] focus:border-[#FF9B2D] transition-all"
-                      placeholder="3009876543"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Relación *
-                    </label>
-                    <input
-                      type="text"
-                      name="refRelacion1"
-                      value={formData.refRelacion1}
-                      onChange={handleChange}
-                      required
-                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg text-gray-800 focus:ring-2 focus:ring-[#FF9B2D] focus:border-[#FF9B2D] transition-all"
-                      placeholder="Amigo/Familiar"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Referencia 2 */}
-              <div className="p-6 bg-gradient-to-br from-gray-50 to-white rounded-xl border-2 border-gray-200 hover:border-[#FF9B2D] transition-all duration-300 shadow-md">
-                <div className="flex items-center mb-4">
-                  <div className="w-10 h-10 bg-[#1E3A5F] rounded-full flex items-center justify-center text-white font-bold mr-3">
-                    2
-                  </div>
-                  <h3 className="text-lg font-bold text-gray-700">Segunda Referencia</h3>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Nombre Completo *
-                    </label>
-                    <input
-                      type="text"
-                      name="refNombre2"
-                      value={formData.refNombre2}
-                      onChange={handleChange}
-                      required
-                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg text-gray-800 focus:ring-2 focus:ring-[#FF9B2D] focus:border-[#FF9B2D] transition-all"
-                      placeholder="Carlos Ramírez"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Teléfono *
-                    </label>
-                    <input
-                      type="tel"
-                      name="refTelefono2"
-                      value={formData.refTelefono2}
-                      onChange={handleChange}
-                      required
-                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg text-gray-800 focus:ring-2 focus:ring-[#FF9B2D] focus:border-[#FF9B2D] transition-all"
-                      placeholder="3101234567"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Relación *
-                    </label>
-                    <input
-                      type="text"
-                      name="refRelacion2"
-                      value={formData.refRelacion2}
-                      onChange={handleChange}
-                      required
-                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg text-gray-800 focus:ring-2 focus:ring-[#FF9B2D] focus:border-[#FF9B2D] transition-all"
-                      placeholder="Amigo/Familiar"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Términos y Condiciones */}
-          <div className="mb-8 p-6 bg-gradient-to-br from-blue-50 to-gray-50 rounded-xl border-2 border-blue-200">
-            <label className="flex items-start space-x-3 cursor-pointer group">
-              <input
-                type="checkbox"
-                required
-                className="mt-1 h-5 w-5 text-[#FF9B2D] focus:ring-[#FF9B2D] border-gray-300 rounded transition-all"
-              />
-              <span className="text-sm text-gray-700 leading-relaxed group-hover:text-gray-900 transition-colors">
-                <strong className="text-[#1E3A5F]">Acepto los términos y condiciones</strong>, y autorizo el tratamiento de mis datos personales
-                de acuerdo con la política de privacidad del banco. *
-              </span>
-            </label>
           </div>
 
           {/* Botón de Envío */}
@@ -805,7 +522,7 @@ export default function Home() {
               <svg className="w-5 h-5 text-[#FF9B2D]" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd"/>
               </svg>
-              <span>Los campos marcados con * son obligatorios</span>
+              <span>Los campos marcados con <span className="text-red-500">*</span> son obligatorios</span>
             </div>
             <button
               type="submit"
@@ -823,7 +540,7 @@ export default function Home() {
                   </>
                 ) : (
                   <>
-                    <span>Enviar Solicitud</span>
+                    <span>Enviar</span>
                     <svg className="w-5 h-5 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3"/>
                     </svg>
@@ -834,7 +551,7 @@ export default function Home() {
           </div>
         </form>
 
-        {/* Información de ayuda mejorada */}
+        {/* Información de ayuda */}
         <div className="mt-12 relative overflow-hidden bg-gradient-to-br from-[#1E3A5F] via-[#2D5F8D] to-[#1E3A5F] rounded-2xl shadow-2xl">
           <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAxMCAwIEwgMCAwIDAgMTAiIGZpbGw9Im5vbmUiIHN0cm9rZT0id2hpdGUiIHN0cm9rZS1vcGFjaXR5PSIwLjA1IiBzdHJva2Utd2lkdGg9IjEiLz48L3BhdHRlcm4+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9InVybCgjZ3JpZCkiLz48L3N2Zz4=')] opacity-30"></div>
           <div className="relative p-8 text-white text-center">
@@ -845,7 +562,7 @@ export default function Home() {
             </div>
             <h3 className="text-2xl md:text-3xl font-bold mb-3">¿Necesitas ayuda?</h3>
             <p className="text-lg text-blue-100 mb-6 max-w-2xl mx-auto">
-              Nuestro equipo está disponible para asistirte en tu solicitud de crédito
+              Nuestro equipo está disponible para asistirte
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl mx-auto">
               <div className="flex items-center justify-center space-x-3 bg-white/10 backdrop-blur-sm rounded-xl p-4 hover:bg-white/20 transition-all">
@@ -876,52 +593,10 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Footer corporativo */}
+      {/* Footer */}
       <footer className="bg-gradient-to-r from-[#1E3A5F] to-[#2D5F8D] text-white mt-16 py-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {/* Columna 1 */}
-            <div>
-              <h3 className="text-lg font-bold mb-4 text-[#FF9B2D]">CONTÁCTANOS</h3>
-              <ul className="space-y-2 text-sm">
-                <li>Lineamía Nacional: 018000126100</li>
-                <li>Lineamía Bogotá: 601 3077021</li>
-                <li>Línea WhatsApp: 310 860 02 01</li>
-              </ul>
-            </div>
-            
-            {/* Columna 2 */}
-            <div>
-              <h3 className="text-lg font-bold mb-4 text-[#FF9B2D]">ACCEDE RÁPIDAMENTE</h3>
-              <ul className="space-y-2 text-sm">
-                <li>Tasas y tarifas</li>
-                <li>Preguntas frecuentes</li>
-                <li>Protección del Consumidor</li>
-                <li>Transparencia</li>
-              </ul>
-            </div>
-            
-            {/* Columna 3 */}
-            <div>
-              <h3 className="text-lg font-bold mb-4 text-[#FF9B2D]">SÍGUENOS</h3>
-              <div className="flex space-x-4">
-                <div className="w-10 h-10 bg-white/10 rounded-full flex items-center justify-center">
-                  <span className="text-xl">f</span>
-                </div>
-                <div className="w-10 h-10 bg-white/10 rounded-full flex items-center justify-center">
-                  <span className="text-xl">📷</span>
-                </div>
-                <div className="w-10 h-10 bg-white/10 rounded-full flex items-center justify-center">
-                  <span className="text-xl">▶</span>
-                </div>
-                <div className="w-10 h-10 bg-white/10 rounded-full flex items-center justify-center">
-                  <span className="text-xl">in</span>
-                </div>
-              </div>
-            </div>
-          </div>
-          
-          <div className="mt-8 pt-8 border-t border-white/20 text-center text-sm">
+          <div className="text-center text-sm">
             <p>© Copyright 2025 – Bancamía. Todos los derechos reservados.</p>
             <p className="mt-2 text-xs text-blue-200">El Banco de los que creen - Transformando realidades</p>
           </div>

@@ -3,45 +3,24 @@
 import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { SolicitudCredito } from "@/lib/types";
 import { storageService } from "@/lib/storage";
+import { useAuth } from "@/contexts/AuthContext";
+import ProtectedRoute from "@/components/ProtectedRoute";
 
-interface UserInfo {
-  email: string;
-  userId: string;
-  domain: string;
-  verified: boolean;
-  mode?: string;
-}
-
-export default function AdminPage() {
+function AdminContent() {
+  const router = useRouter();
+  const { user, logout } = useAuth();
   const [solicitudes, setSolicitudes] = useState<SolicitudCredito[]>([]);
   const [filtro, setFiltro] = useState("");
   const [solicitudSeleccionada, setSolicitudSeleccionada] = useState<SolicitudCredito | null>(null);
-  const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
-  const [, setCargandoUsuario] = useState(true);
   const [cargandoSolicitudes, setCargandoSolicitudes] = useState(false);
 
   useEffect(() => {
+    // Cargar solicitudes al montar el componente
     cargarSolicitudes();
-    cargarUsuario();
   }, []);
-
-  const cargarUsuario = async () => {
-    try {
-      const response = await fetch('/api/user-info');
-      if (response.ok) {
-        const data = await response.json();
-        setUserInfo(data);
-      } else {
-        console.warn('No se pudo obtener información del usuario');
-      }
-    } catch (error) {
-      console.error('Error cargando usuario:', error);
-    } finally {
-      setCargandoUsuario(false);
-    }
-  };
 
   const cargarSolicitudes = async () => {
     setCargandoSolicitudes(true);
@@ -151,6 +130,17 @@ export default function AdminPage() {
     link.click();
   };
 
+  const handleLogout = async () => {
+    if (confirm("¿Está seguro que desea cerrar sesión?")) {
+      try {
+        await logout();
+        router.push("/login");
+      } catch (error) {
+        console.error("Error al cerrar sesión:", error);
+      }
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -171,29 +161,24 @@ export default function AdminPage() {
                   Panel de Administración
                 </h1>
                 <p className="text-sm text-gray-600">Gestión de Solicitudes de Crédito</p>
-                {userInfo && (
+                {user && (
                   <div className="flex items-center space-x-2 mt-1">
                     <span className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded-full">
-                      ✓ Autenticado con IAP
+                      ✓ Autenticado con Firebase
                     </span>
-                    {userInfo.mode === 'development' && (
-                      <span className="text-xs px-2 py-1 bg-yellow-100 text-yellow-700 rounded-full">
-                        🔧 Modo Desarrollo
-                      </span>
-                    )}
                   </div>
                 )}
               </div>
             </div>
             <div className="flex items-center space-x-4">
-              {userInfo && (
+              {user && (
                 <div className="hidden lg:flex items-center space-x-3 px-4 py-2 bg-blue-50 rounded-lg">
                   <div className="w-10 h-10 bg-[#FF9B2D] rounded-full flex items-center justify-center text-white font-bold">
-                    {userInfo.email.charAt(0).toUpperCase()}
+                    {user.email?.charAt(0).toUpperCase()}
                   </div>
                   <div className="text-left">
-                    <p className="text-sm font-semibold text-gray-900">{userInfo.email}</p>
-                    <p className="text-xs text-gray-500">{userInfo.domain}</p>
+                    <p className="text-sm font-semibold text-gray-900">{user.email}</p>
+                    {user.name && <p className="text-xs text-gray-500">{user.name}</p>}
                   </div>
                 </div>
               )}
@@ -206,6 +191,15 @@ export default function AdminPage() {
                 </svg>
                 <span>Volver al Formulario</span>
               </Link>
+              <button
+                onClick={handleLogout}
+                className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg transition-all duration-200 flex items-center space-x-2"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+                <span>Cerrar Sesión</span>
+              </button>
             </div>
           </div>
         </div>
@@ -698,4 +692,11 @@ export default function AdminPage() {
   );
 }
 
+export default function AdminPage() {
+  return (
+    <ProtectedRoute>
+      <AdminContent />
+    </ProtectedRoute>
+  );
+}
 

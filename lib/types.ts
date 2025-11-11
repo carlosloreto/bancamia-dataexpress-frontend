@@ -1,82 +1,49 @@
-// Tipos de datos para el formulario de crédito
+// Tipos de datos para el formulario de autorización de datos Bancamía
+// Basado en el formulario oficial de Google Forms
 
-export interface SolicitudCredito {
+export interface AutorizacionDatos {
   id?: string;
   fechaSolicitud?: string;
+  
+  // Email
+  email: string;
+  
+  // Autorizaciones (requeridas)
+  autorizacionTratamientoDatos: boolean;
+  autorizacionContacto: boolean;
   
   // Información Personal
   nombreCompleto: string;
   tipoDocumento: string;
   numeroDocumento: string;
   fechaNacimiento: string;
-  estadoCivil: string;
-  genero: string;
-  telefono: string;
-  email: string;
-  direccion: string;
-  ciudad: string;
-  departamento: string;
+  fechaExpedicionDocumento: string;
   
-  // Información Laboral
-  ocupacion: string;
-  empresa: string;
-  tipoContrato: string;
-  ingresosMensuales: string;
-  tiempoEmpleo: string;
-  cargoActual: string;
-  
-  // Información del Crédito
-  montoSolicitado: string;
-  plazoMeses: string;
-  proposito: string;
-  tieneDeudas: string;
-  montoDeudas?: string;
-  
-  // Referencias
-  refNombre1: string;
-  refTelefono1: string;
-  refRelacion1: string;
-  refNombre2: string;
-  refTelefono2: string;
-  refRelacion2: string;
+  // Información de Negocio
+  ciudadNegocio: string;
+  direccionNegocio: string;
+  celularNegocio: string;
 }
 
-export const initialFormData: SolicitudCredito = {
+export const initialFormData: AutorizacionDatos = {
+  // Email
+  email: "",
+  
+  // Autorizaciones
+  autorizacionTratamientoDatos: false,
+  autorizacionContacto: false,
+  
   // Información Personal
   nombreCompleto: "",
   tipoDocumento: "CC",
   numeroDocumento: "",
   fechaNacimiento: "",
-  estadoCivil: "",
-  genero: "",
-  telefono: "",
-  email: "",
-  direccion: "",
-  ciudad: "",
-  departamento: "",
+  fechaExpedicionDocumento: "",
   
-  // Información Laboral
-  ocupacion: "",
-  empresa: "",
-  tipoContrato: "",
-  ingresosMensuales: "",
-  tiempoEmpleo: "",
-  cargoActual: "",
-  
-  // Información del Crédito
-  montoSolicitado: "",
-  plazoMeses: "",
-  proposito: "",
-  tieneDeudas: "no",
-  montoDeudas: "",
-  
-  // Referencias
-  refNombre1: "",
-  refTelefono1: "",
-  refRelacion1: "",
-  refNombre2: "",
-  refTelefono2: "",
-  refRelacion2: "",
+  // Información de Negocio
+  ciudadNegocio: "",
+  direccionNegocio: "",
+  celularNegocio: "",
 };
 
 
