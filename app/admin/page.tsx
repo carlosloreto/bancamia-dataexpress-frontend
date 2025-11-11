@@ -20,6 +20,7 @@ export default function AdminPage() {
   const [solicitudSeleccionada, setSolicitudSeleccionada] = useState<SolicitudCredito | null>(null);
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
   const [, setCargandoUsuario] = useState(true);
+  const [cargandoSolicitudes, setCargandoSolicitudes] = useState(false);
 
   useEffect(() => {
     cargarSolicitudes();
@@ -42,9 +43,39 @@ export default function AdminPage() {
     }
   };
 
-  const cargarSolicitudes = () => {
-    const datos = storageService.obtenerTodasSolicitudes();
-    setSolicitudes(datos);
+  const cargarSolicitudes = async () => {
+    setCargandoSolicitudes(true);
+    try {
+      const response = await fetch('/api/solicitudes');
+      if (response.ok) {
+        const data = await response.json();
+        // La API puede devolver los datos en diferentes formatos
+        // Intentar extraer el array de solicitudes
+        let solicitudesData: SolicitudCredito[] = [];
+        
+        if (data.data && Array.isArray(data.data)) {
+          solicitudesData = data.data;
+        } else if (Array.isArray(data)) {
+          solicitudesData = data;
+        } else if (data.solicitudes && Array.isArray(data.solicitudes)) {
+          solicitudesData = data.solicitudes;
+        }
+        
+        setSolicitudes(solicitudesData);
+      } else {
+        console.error('Error obteniendo solicitudes:', response.status, response.statusText);
+        // En caso de error, intentar cargar desde localStorage como fallback
+        const datos = storageService.obtenerTodasSolicitudes();
+        setSolicitudes(datos);
+      }
+    } catch (error) {
+      console.error('Error cargando solicitudes:', error);
+      // En caso de error, intentar cargar desde localStorage como fallback
+      const datos = storageService.obtenerTodasSolicitudes();
+      setSolicitudes(datos);
+    } finally {
+      setCargandoSolicitudes(false);
+    }
   };
 
   const solicitudesFiltradas = solicitudes.filter(
@@ -298,17 +329,30 @@ export default function AdminPage() {
               </button>
               <button
                 onClick={cargarSolicitudes}
-                className="px-6 py-3 bg-[#FF9B2D] hover:bg-[#E6881A] text-white font-semibold rounded-lg transition-all duration-200 flex items-center space-x-2"
+                disabled={cargandoSolicitudes}
+                className="px-6 py-3 bg-[#FF9B2D] hover:bg-[#E6881A] disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-all duration-200 flex items-center space-x-2"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                  />
-                </svg>
-                <span>Actualizar</span>
+                {cargandoSolicitudes ? (
+                  <>
+                    <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span>Cargando...</span>
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                      />
+                    </svg>
+                    <span>Actualizar</span>
+                  </>
+                )}
               </button>
             </div>
           </div>
@@ -331,7 +375,19 @@ export default function AdminPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {solicitudesFiltradas.length === 0 ? (
+                {cargandoSolicitudes ? (
+                  <tr>
+                    <td colSpan={8} className="px-6 py-12 text-center">
+                      <div className="flex flex-col items-center space-y-3">
+                        <svg className="animate-spin h-8 w-8 text-[#FF9B2D]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <p className="text-lg font-semibold text-gray-600">Cargando solicitudes...</p>
+                      </div>
+                    </td>
+                  </tr>
+                ) : solicitudesFiltradas.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="px-6 py-12 text-center text-gray-500">
                       <div className="flex flex-col items-center space-y-3">

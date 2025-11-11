@@ -1,9 +1,193 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 /**
- * Proxy endpoint para enviar solicitudes a la API de Bancamia
+ * Proxy endpoint para obtener y enviar solicitudes a la API de Bancamia
  * Evita problemas de CORS y permite manejar errores del servidor
- * POST /api/solicitudes
+ * GET /api/solicitudes - Obtener lista de solicitudes
+ * POST /api/solicitudes - Crear nueva solicitud
+ */
+
+/**
+ * GET /api/solicitudes - Obtener lista de solicitudes
+ */
+export async function GET(request: NextRequest) {
+  const timeoutMs = 60000; // 60 segundos para GET
+  const startTime = Date.now();
+  
+  try {
+    // Obtener URL de la API desde variables de entorno
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+    
+    if (!apiUrl) {
+      console.error('[API Proxy] ERROR: NEXT_PUBLIC_API_URL no está configurada en las variables de entorno');
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            name: 'ConfigurationError',
+            message: 'La URL de la API no está configurada. Configura NEXT_PUBLIC_API_URL en .env.local',
+            statusCode: 500,
+          },
+        },
+        { status: 500 }
+      );
+    }
+    
+    // Asegurar que la URL no termine con /
+    const apiUrlClean = apiUrl.replace(/\/$/, '');
+    const url = `${apiUrlClean}/api/v1/solicitudes`;
+
+    console.log(`[API Proxy GET] Obteniendo solicitudes de: ${url}`);
+    console.log(`[API Proxy GET] Iniciando request a las ${new Date().toISOString()}`);
+
+    // Crear AbortController para manejar timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+      console.log(`[API Proxy GET] Timeout alcanzado después de ${timeoutMs/1000} segundos, abortando request...`);
+      controller.abort();
+    }, timeoutMs);
+
+    try {
+      // Enviar request GET a la API de Bancamia
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+      const elapsedTime = ((Date.now() - startTime) / 1000).toFixed(2);
+      console.log(`[API Proxy GET] Respuesta recibida después de ${elapsedTime}s: ${response.status} ${response.statusText}`);
+
+      // Si hay error (4xx, 5xx), manejar apropiadamente
+      if (!response.ok) {
+        const text = await response.text();
+        console.error(`[API Proxy GET] Error ${response.status} de la API: ${text}`);
+        console.error(`[API Proxy GET] Tiempo transcurrido: ${elapsedTime}s`);
+        
+        // Intentar parsear como JSON si es posible
+        let result;
+        try {
+          result = JSON.parse(text);
+        } catch {
+          result = {
+            success: false,
+            error: {
+              name: 'ServerError',
+              message: text || `Error ${response.status}: ${response.statusText}`,
+              statusCode: response.status,
+            },
+          };
+        }
+        
+        return NextResponse.json(result, { status: response.status });
+      }
+
+      // Si es exitoso, parsear como JSON
+      const contentType = response.headers.get('content-type');
+      let result;
+      
+      if (contentType && contentType.includes('application/json')) {
+        result = await response.json();
+      } else {
+        const text = await response.text();
+        result = {
+          success: true,
+          data: text ? JSON.parse(text) : [],
+        };
+      }
+
+      // Retornar respuesta exitosa
+      return NextResponse.json(result, { status: response.status });
+    } finally {
+      clearTimeout(timeoutId);
+    }
+
+  } catch (error) {
+    console.error('[API Proxy GET] Error obteniendo solicitudes:', error);
+
+    // Manejar diferentes tipos de errores
+    if (error instanceof Error) {
+      interface ErrorWithCode extends Error {
+        code?: string;
+        cause?: {
+          code?: string;
+          message?: string;
+        };
+      }
+      const errorWithCode = error as ErrorWithCode;
+      const errorCode = errorWithCode.code;
+      const errorCause = errorWithCode.cause;
+      const causeCode = errorCause?.code;
+
+      // Error de timeout
+      if (error.name === 'AbortError' || error.message.includes('timeout') || error.message.includes('aborted')) {
+        const elapsedTime = ((Date.now() - startTime) / 1000).toFixed(2);
+        console.error(`[API Proxy GET] Timeout: La API no respondió en ${timeoutMs/1000} segundos (tiempo transcurrido: ${elapsedTime}s)`);
+        return NextResponse.json(
+          {
+            success: false,
+            error: {
+              name: 'TimeoutError',
+              message: 'La solicitud está tardando más de lo esperado. Por favor intenta de nuevo.',
+              statusCode: 504,
+            },
+          },
+          { status: 504 }
+        );
+      }
+
+      // Error de red
+      if (error.message.includes('fetch') || error.message.includes('network') || 
+          error.message.includes('ECONNREFUSED') || error.message.includes('ENOTFOUND')) {
+        console.error('[API Proxy GET] Error de red:', error);
+        return NextResponse.json(
+          {
+            success: false,
+            error: {
+              name: 'NetworkError',
+              message: 'Error de conexión con el servidor. Verifica tu conexión a internet y que la API esté disponible.',
+              statusCode: 503,
+              details: error.message,
+            },
+          },
+          { status: 503 }
+        );
+      }
+
+      // Otros errores
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            name: 'ServerError',
+            message: error.message || 'Error al obtener las solicitudes',
+            statusCode: 500,
+          },
+        },
+        { status: 500 }
+      );
+    }
+
+    // Error desconocido
+    return NextResponse.json(
+      {
+        success: false,
+        error: {
+          name: 'UnknownError',
+          message: 'Error desconocido al obtener las solicitudes',
+          statusCode: 500,
+        },
+      },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * POST /api/solicitudes - Crear nueva solicitud
  */
 export async function POST(request: NextRequest) {
   // Variables para tracking de tiempo (necesarias en el catch)
