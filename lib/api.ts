@@ -134,7 +134,7 @@ function validarDatos(solicitud: SolicitudCredito): { valido: boolean; errores: 
   }
 
   // Validar montoDeudas condicional
-  if (solicitud.tieneDeudas === 'si' && (!solicitud.montoDeudas || solicitud.montoDeudas.trim() === '')) {
+  if (solicitud.tieneDeudas === 'si' && (!solicitud.montoDeudas || String(solicitud.montoDeudas).trim() === '')) {
     errores.push('El campo montoDeudas es requerido cuando tieneDeudas es "si"');
   }
 

@@ -4,11 +4,10 @@ import {
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword,
   signOut as firebaseSignOut,
-  User as FirebaseUser,
   updateProfile
 } from 'firebase/auth';
 import { auth } from './firebase';
-import { api, ApiResponse } from './api-client';
+import { api } from './api-client';
 
 // Tipos para usuario
 export interface User {

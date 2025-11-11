@@ -10,7 +10,7 @@ import { NextRequest, NextResponse } from 'next/server';
 /**
  * GET /api/solicitudes - Obtener lista de solicitudes
  */
-export async function GET(request: NextRequest) {
+export async function GET() {
   const timeoutMs = 60000; // 60 segundos para GET
   const startTime = Date.now();
   
@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
           success: false,
           error: {
             name: 'ConfigurationError',
-            message: 'La URL de la API no está configurada. Configura NEXT_PUBLIC_API_URL en .env.local',
+            message: 'La URL de la API no está configurada. Configura NEXT_PUBLIC_API_URL en .env',
             statusCode: 500,
           },
         },
@@ -110,18 +110,6 @@ export async function GET(request: NextRequest) {
 
     // Manejar diferentes tipos de errores
     if (error instanceof Error) {
-      interface ErrorWithCode extends Error {
-        code?: string;
-        cause?: {
-          code?: string;
-          message?: string;
-        };
-      }
-      const errorWithCode = error as ErrorWithCode;
-      const errorCode = errorWithCode.code;
-      const errorCause = errorWithCode.cause;
-      const causeCode = errorCause?.code;
-
       // Error de timeout
       if (error.name === 'AbortError' || error.message.includes('timeout') || error.message.includes('aborted')) {
         const elapsedTime = ((Date.now() - startTime) / 1000).toFixed(2);
@@ -208,7 +196,7 @@ export async function POST(request: NextRequest) {
           success: false,
           error: {
             name: 'ConfigurationError',
-            message: 'La URL de la API no está configurada. Configura NEXT_PUBLIC_API_URL en .env.local',
+            message: 'La URL de la API no está configurada. Configura NEXT_PUBLIC_API_URL en .env',
             statusCode: 500,
           },
         },
@@ -349,7 +337,7 @@ export async function POST(request: NextRequest) {
               name: 'SSLError',
               message: 'Error de conexión SSL con el servidor. Verifica que la URL de la API sea correcta y use HTTPS.',
               statusCode: 503,
-              details: 'El servidor puede no estar respondiendo con HTTPS correctamente. Verifica la URL en .env.local',
+              details: 'El servidor puede no estar respondiendo con HTTPS correctamente. Verifica la URL en .env',
               url: process.env.NEXT_PUBLIC_API_URL || 'no configurada',
             },
           },

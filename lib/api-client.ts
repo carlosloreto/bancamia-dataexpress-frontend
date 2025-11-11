@@ -23,8 +23,23 @@ export interface ApiErrorResponse {
 export type ApiResponse<T = unknown> = ApiSuccessResponse<T> | ApiErrorResponse;
 
 // Crear instancia de axios
+// Validar que NEXT_PUBLIC_API_URL esté configurada
+const apiBaseURL = process.env.NEXT_PUBLIC_API_URL;
+
+if (!apiBaseURL) {
+  console.error('❌ ERROR: NEXT_PUBLIC_API_URL no está configurada en las variables de entorno');
+  console.error('Por favor, configura NEXT_PUBLIC_API_URL en tu archivo .env');
+  
+  // Solo permitir localhost en desarrollo
+  if (process.env.NODE_ENV === 'development') {
+    console.warn('⚠️ Usando localhost:3001 como fallback para desarrollo');
+  } else {
+    throw new Error('NEXT_PUBLIC_API_URL es requerida en producción. Configura esta variable en .env');
+  }
+}
+
 const apiClient: AxiosInstance = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001',
+  baseURL: apiBaseURL || 'http://localhost:3001',
   timeout: 30000, // 30 segundos
   headers: {
     'Content-Type': 'application/json',

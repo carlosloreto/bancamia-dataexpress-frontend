@@ -46,4 +46,46 @@ export const initialFormData: AutorizacionDatos = {
   celularNegocio: "",
 };
 
+// Tipo de datos para solicitud de crédito
+export interface SolicitudCredito {
+  id?: string;
+  fechaSolicitud?: string;
+  
+  // Información Personal
+  nombreCompleto: string;
+  tipoDocumento: string;
+  numeroDocumento: string;
+  fechaNacimiento: string;
+  estadoCivil: string;
+  genero: string;
+  telefono: string;
+  email: string;
+  direccion: string;
+  ciudad: string;
+  departamento: string;
+  
+  // Información Laboral
+  ocupacion: string;
+  empresa: string;
+  cargoActual: string;
+  tipoContrato: string;
+  ingresosMensuales: string | number;
+  tiempoEmpleo: string;
+  
+  // Información del Crédito
+  montoSolicitado: string | number;
+  plazoMeses: string;
+  proposito: string;
+  tieneDeudas: string;
+  montoDeudas?: string | number;
+  
+  // Referencias Personales
+  refNombre1: string;
+  refTelefono1: string;
+  refRelacion1: string;
+  refNombre2: string;
+  refTelefono2: string;
+  refRelacion2: string;
+}
+
 

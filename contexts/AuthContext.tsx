@@ -100,7 +100,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setError(null);
       
       console.log('📝 Intentando registro...');
-      const newUser = await authService.register(data);
+      await authService.register(data);
       
       // Después del registro, hacer login automático
       console.log('🔐 Login automático después de registro...');

@@ -76,7 +76,7 @@ function AdminContent() {
     });
   };
 
-  const formatearMonto = (monto: string) => {
+  const formatearMonto = (monto: string | number) => {
     return new Intl.NumberFormat("es-CO", {
       style: "currency",
       currency: "COP",

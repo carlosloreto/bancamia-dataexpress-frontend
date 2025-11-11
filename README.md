@@ -56,7 +56,7 @@ Para acceder al panel de administración, necesitas configurar autenticación:
 
 1. **Copia el archivo de configuración:**
 ```bash
-cp env.example .env.local
+cp env.example .env
 ```
 
 2. **Accede al admin con el token:**
@@ -131,7 +131,7 @@ El área `/admin` está protegida con soporte para:
 
 | Entorno | Método | Configuración |
 |---------|--------|---------------|
-| **Desarrollo** | Token simple | `DEV_ADMIN_TOKEN` en `.env.local` |
+| **Desarrollo** | Token simple | `DEV_ADMIN_TOKEN` en `.env` |
 | **Producción** | IAP de GCP | `IAP_AUDIENCE` + configuración IAP |
 | **Integración** | JWT del cliente | Token firmado compartido |
 

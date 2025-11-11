@@ -61,7 +61,7 @@ async function verifyIAPToken(token: string): Promise<IAPPayload | null> {
     const audience = process.env.IAP_AUDIENCE;
     
     if (!audience) {
-      console.warn('⚠️ IAP_AUDIENCE no configurado. Define en .env.local');
+      console.warn('⚠️ IAP_AUDIENCE no configurado. Define en .env');
       // En desarrollo, solo decodificar sin verificar
       if (process.env.NODE_ENV === 'development') {
         const decoded = JSON.parse(

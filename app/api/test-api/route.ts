@@ -17,7 +17,7 @@ export async function GET() {
           config: {
             envVarSet: false,
             envVarValue: 'no configurada',
-            message: 'Configura NEXT_PUBLIC_API_URL en .env.local',
+            message: 'Configura NEXT_PUBLIC_API_URL en .env',
           },
           timestamp: new Date().toISOString(),
         },
