@@ -27,15 +27,34 @@ export type ApiResponse<T = unknown> = ApiSuccessResponse<T> | ApiErrorResponse;
 // Validar que NEXT_PUBLIC_API_URL esté configurada
 const apiBaseURL = process.env.NEXT_PUBLIC_API_URL;
 
+// Detectar si estamos en tiempo de build
+// Durante el build de Next.js, las variables de entorno de Cloud Run pueden no estar disponibles
+const isBuildTime = 
+  typeof window === 'undefined' && 
+  (process.env.NEXT_PHASE === 'phase-production-build' || 
+   process.env.NEXT_PHASE === 'phase-development-build' ||
+   process.argv.includes('build') ||
+   process.env.npm_lifecycle_event === 'build');
+
 if (!apiBaseURL) {
-  console.error('❌ ERROR: NEXT_PUBLIC_API_URL no está configurada en las variables de entorno');
-  console.error('Por favor, configura NEXT_PUBLIC_API_URL en tu archivo .env');
-  
-  // Solo permitir localhost en desarrollo
-  if (process.env.NODE_ENV === 'development') {
-    console.warn('⚠️ Usando localhost:3001 como fallback para desarrollo');
+  // Durante el build, solo mostrar warning y permitir continuar
+  // Las variables estarán disponibles en runtime en Cloud Run
+  if (isBuildTime) {
+    console.warn('⚠️ ADVERTENCIA: NEXT_PUBLIC_API_URL no está configurada durante el build.');
+    console.warn('Esto es normal en Cloud Run si las variables de entorno se configuran en tiempo de ejecución.');
+    console.warn('La aplicación continuará el build. La variable se validará en tiempo de ejecución.');
   } else {
-    throw new Error('NEXT_PUBLIC_API_URL es requerida en producción. Configura esta variable en .env');
+    console.error('❌ ERROR: NEXT_PUBLIC_API_URL no está configurada en las variables de entorno');
+    console.error('Por favor, configura NEXT_PUBLIC_API_URL en tu archivo .env');
+    
+    // Solo permitir localhost en desarrollo
+    if (process.env.NODE_ENV === 'development') {
+      console.warn('⚠️ Usando localhost:3001 como fallback para desarrollo');
+    } else if (process.env.NODE_ENV === 'production' && !isBuildTime) {
+      // En runtime de producción, solo mostrar error pero no lanzar excepción
+      // El error se manejará cuando se intente usar el cliente API
+      console.error('⚠️ NEXT_PUBLIC_API_URL no está configurada en runtime. Las llamadas a la API fallarán.');
+    }
   }
 }
 
