@@ -7,8 +7,8 @@ import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 
 export default function AdminLoginPage() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState('test2@example.com');
+  const [password, setPassword] = useState('Test123456');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -22,14 +22,14 @@ export default function AdminLoginPage() {
     }
   }, [user, router]);
 
-  // Cargar email guardado si existe
+  // Cargar email guardado si existe (solo si no hay valores por defecto)
   useEffect(() => {
     const savedEmail = localStorage.getItem('remembered_email');
-    if (savedEmail) {
+    if (savedEmail && !email) {
       setEmail(savedEmail);
       setRememberMe(true);
     }
-  }, []);
+  }, [email]);
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();

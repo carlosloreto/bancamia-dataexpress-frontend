@@ -4,17 +4,18 @@ import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { SolicitudCredito } from "@/lib/types";
+import { SolicitudCredito, AutorizacionDatos } from "@/lib/types";
 import { storageService } from "@/lib/storage";
 import { useAuth } from "@/contexts/AuthContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import { auth } from "@/lib/firebase";
 
 function AdminContent() {
   const router = useRouter();
   const { user, logout } = useAuth();
-  const [solicitudes, setSolicitudes] = useState<SolicitudCredito[]>([]);
+  const [solicitudes, setSolicitudes] = useState<(SolicitudCredito | AutorizacionDatos)[]>([]);
   const [filtro, setFiltro] = useState("");
-  const [solicitudSeleccionada, setSolicitudSeleccionada] = useState<SolicitudCredito | null>(null);
+  const [solicitudSeleccionada, setSolicitudSeleccionada] = useState<(SolicitudCredito | AutorizacionDatos) | null>(null);
   const [cargandoSolicitudes, setCargandoSolicitudes] = useState(false);
 
   useEffect(() => {
@@ -25,24 +26,52 @@ function AdminContent() {
   const cargarSolicitudes = async () => {
     setCargandoSolicitudes(true);
     try {
-      const response = await fetch('/api/solicitudes');
+      // Obtener idToken de Firebase para incluir en el header
+      const user = auth.currentUser;
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      
+      if (user) {
+        try {
+          const idToken = await user.getIdToken();
+          headers['Authorization'] = `Bearer ${idToken}`;
+        } catch (tokenError) {
+          console.error('Error al obtener token:', tokenError);
+        }
+      }
+      
+      const response = await fetch('/api/solicitudes', {
+        headers: headers as HeadersInit,
+      });
+      
       if (response.ok) {
         const data = await response.json();
         // La API puede devolver los datos en diferentes formatos
         // Intentar extraer el array de solicitudes
-        let solicitudesData: SolicitudCredito[] = [];
+        let solicitudesData: (SolicitudCredito | AutorizacionDatos)[] = [];
         
         if (data.data && Array.isArray(data.data)) {
           solicitudesData = data.data;
-        } else if (Array.isArray(data)) {
-          solicitudesData = data;
         } else if (data.solicitudes && Array.isArray(data.solicitudes)) {
           solicitudesData = data.solicitudes;
+        } else if (Array.isArray(data)) {
+          solicitudesData = data;
         }
         
         setSolicitudes(solicitudesData);
       } else {
+        const errorData = await response.json().catch(() => ({}));
         console.error('Error obteniendo solicitudes:', response.status, response.statusText);
+        console.error('Detalles del error:', errorData);
+        
+        // Verificar si es un error de índice de Firestore
+        if (errorData.error?.details?.originalError?.includes('requires an index')) {
+          console.error('⚠️ ERROR: Firestore requiere un índice compuesto.');
+          console.error('📋 Solución: Haz clic en el enlace del error para crear el índice automáticamente.');
+          console.error('🔗 Enlace:', errorData.error?.details?.originalError?.match(/https:\/\/[^\s]+/)?.[0]);
+        }
+        
         // En caso de error, intentar cargar desde localStorage como fallback
         const datos = storageService.obtenerTodasSolicitudes();
         setSolicitudes(datos);
@@ -59,9 +88,9 @@ function AdminContent() {
 
   const solicitudesFiltradas = solicitudes.filter(
     (s) =>
-      s.nombreCompleto.toLowerCase().includes(filtro.toLowerCase()) ||
-      s.numeroDocumento.includes(filtro) ||
-      s.email.toLowerCase().includes(filtro.toLowerCase()) ||
+      (s.nombreCompleto && s.nombreCompleto.toLowerCase().includes(filtro.toLowerCase())) ||
+      (s.numeroDocumento && s.numeroDocumento.includes(filtro)) ||
+      (s.email && s.email.toLowerCase().includes(filtro.toLowerCase())) ||
       (s.id && s.id.toLowerCase().includes(filtro.toLowerCase()))
   );
 
@@ -76,12 +105,25 @@ function AdminContent() {
     });
   };
 
-  const formatearMonto = (monto: string | number) => {
+  const formatearMonto = (monto: string | number | undefined) => {
+    if (!monto) return "N/A";
     return new Intl.NumberFormat("es-CO", {
       style: "currency",
       currency: "COP",
       minimumFractionDigits: 0,
     }).format(Number(monto));
+  };
+
+  // Función helper para obtener el teléfono (puede ser telefono o celularNegocio)
+  const obtenerTelefono = (s: SolicitudCredito | AutorizacionDatos): string => {
+    if ('telefono' in s && s.telefono) return s.telefono;
+    if ('celularNegocio' in s && s.celularNegocio) return s.celularNegocio;
+    return "N/A";
+  };
+
+  // Función helper para verificar si es AutorizacionDatos
+  const esAutorizacionDatos = (s: SolicitudCredito | AutorizacionDatos): s is AutorizacionDatos => {
+    return 'ciudadNegocio' in s && 'direccionNegocio' in s && 'celularNegocio' in s;
   };
 
   const eliminarSolicitud = (id: string | undefined) => {
@@ -113,11 +155,11 @@ function AdminContent() {
       s.nombreCompleto,
       s.numeroDocumento,
       s.email,
-      s.telefono,
-      s.montoSolicitado,
-      s.plazoMeses,
-      s.empresa,
-      s.ingresosMensuales,
+      obtenerTelefono(s),
+      'montoSolicitado' in s ? (s.montoSolicitado || 'N/A') : 'N/A',
+      'plazoMeses' in s ? (s.plazoMeses || 'N/A') : 'N/A',
+      'empresa' in s ? (s.empresa || 'N/A') : 'N/A',
+      'ingresosMensuales' in s ? (s.ingresosMensuales || 'N/A') : 'N/A',
     ]);
 
     const csvContent =
@@ -151,23 +193,16 @@ function AdminContent() {
               <Image
                 src="/Bancamia2-300x99.png"
                 alt="Bancamía"
-                width={180}
-                height={60}
-                className="h-auto w-auto max-h-12"
+                width={220}
+                height={73}
+                className="h-auto w-auto max-h-16"
               />
-              <div className="hidden md:block h-12 w-px bg-gray-300"></div>
+              <div className="hidden md:block h-16 w-px bg-gray-300"></div>
               <div>
                 <h1 className="text-2xl font-bold text-[#1E3A5F]">
                   Panel de Administración
                 </h1>
                 <p className="text-sm text-gray-600">Gestión de Solicitudes de Crédito</p>
-                {user && (
-                  <div className="flex items-center space-x-2 mt-1">
-                    <span className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded-full">
-                      ✓ Autenticado con Firebase
-                    </span>
-                  </div>
-                )}
               </div>
             </div>
             <div className="flex items-center space-x-4">
@@ -183,13 +218,13 @@ function AdminContent() {
                 </div>
               )}
               <Link
-                href="/"
+                href="/formulario"
                 className="px-6 py-3 bg-[#1E3A5F] hover:bg-[#2D5F8D] text-white font-semibold rounded-lg transition-all duration-200 flex items-center space-x-2"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
-                <span>Volver al Formulario</span>
+                <span>Formulario</span>
               </Link>
               <button
                 onClick={handleLogout}
@@ -226,7 +261,10 @@ function AdminContent() {
                 <p className="text-sm text-gray-600 mb-1">Monto Total Solicitado</p>
                 <p className="text-2xl font-bold text-[#1E3A5F]">
                   {formatearMonto(
-                    solicitudes.reduce((sum, s) => sum + Number(s.montoSolicitado || 0), 0).toString()
+                    solicitudes.reduce((sum, s) => {
+                      const monto = 'montoSolicitado' in s ? s.montoSolicitado : 0;
+                      return sum + Number(monto || 0);
+                    }, 0).toString()
                   )}
                 </p>
               </div>
@@ -265,7 +303,10 @@ function AdminContent() {
                   {formatearMonto(
                     solicitudes.length > 0
                       ? (
-                          solicitudes.reduce((sum, s) => sum + Number(s.montoSolicitado || 0), 0) /
+                          solicitudes.reduce((sum, s) => {
+                            const monto = 'montoSolicitado' in s ? s.montoSolicitado : 0;
+                            return sum + Number(monto || 0);
+                          }, 0) /
                           solicitudes.length
                         ).toString()
                       : "0"
@@ -414,9 +455,11 @@ function AdminContent() {
                       <td className="px-6 py-4 text-sm text-gray-600">{solicitud.numeroDocumento}</td>
                       <td className="px-6 py-4 text-sm text-gray-600">{solicitud.email}</td>
                       <td className="px-6 py-4 text-sm font-semibold text-green-600">
-                        {formatearMonto(solicitud.montoSolicitado)}
+                        {'montoSolicitado' in solicitud ? formatearMonto(solicitud.montoSolicitado) : 'N/A'}
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-600">{solicitud.plazoMeses} meses</td>
+                      <td className="px-6 py-4 text-sm text-gray-600">
+                        {'plazoMeses' in solicitud ? `${solicitud.plazoMeses} meses` : 'N/A'}
+                      </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center justify-center space-x-2">
                           <button
@@ -524,151 +567,205 @@ function AdminContent() {
                     <p className="text-sm text-gray-600">Fecha de Nacimiento</p>
                     <p className="font-semibold text-gray-900">{solicitudSeleccionada.fechaNacimiento}</p>
                   </div>
-                  <div>
-                    <p className="text-sm text-gray-600">Estado Civil</p>
-                    <p className="font-semibold text-gray-900">{solicitudSeleccionada.estadoCivil}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600">Email</p>
-                    <p className="font-semibold text-gray-900">{solicitudSeleccionada.email}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600">Teléfono</p>
-                    <p className="font-semibold text-gray-900">{solicitudSeleccionada.telefono}</p>
-                  </div>
-                  <div className="md:col-span-2">
-                    <p className="text-sm text-gray-600">Dirección</p>
-                    <p className="font-semibold text-gray-900">
-                      {solicitudSeleccionada.direccion}, {solicitudSeleccionada.ciudad},{" "}
-                      {solicitudSeleccionada.departamento}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Información Laboral */}
-              <div>
-                <h3 className="text-xl font-bold text-[#1E3A5F] mb-4 flex items-center">
-                  <span className="w-8 h-8 bg-[#1E3A5F] rounded-full flex items-center justify-center text-white text-sm mr-3">
-                    2
-                  </span>
-                  Información Laboral
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pl-11">
-                  <div>
-                    <p className="text-sm text-gray-600">Ocupación</p>
-                    <p className="font-semibold text-gray-900">{solicitudSeleccionada.ocupacion}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600">Empresa</p>
-                    <p className="font-semibold text-gray-900">{solicitudSeleccionada.empresa}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600">Cargo</p>
-                    <p className="font-semibold text-gray-900">{solicitudSeleccionada.cargoActual}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600">Tipo de Contrato</p>
-                    <p className="font-semibold text-gray-900">{solicitudSeleccionada.tipoContrato}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600">Ingresos Mensuales</p>
-                    <p className="font-semibold text-green-600">
-                      {formatearMonto(solicitudSeleccionada.ingresosMensuales)}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600">Tiempo en el Empleo</p>
-                    <p className="font-semibold text-gray-900">{solicitudSeleccionada.tiempoEmpleo}</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Información del Crédito */}
-              <div>
-                <h3 className="text-xl font-bold text-[#1E3A5F] mb-4 flex items-center">
-                  <span className="w-8 h-8 bg-[#FF9B2D] rounded-full flex items-center justify-center text-white text-sm mr-3">
-                    3
-                  </span>
-                  Información del Crédito
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pl-11">
-                  <div>
-                    <p className="text-sm text-gray-600">Monto Solicitado</p>
-                    <p className="font-semibold text-green-600 text-xl">
-                      {formatearMonto(solicitudSeleccionada.montoSolicitado)}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600">Plazo</p>
-                    <p className="font-semibold text-gray-900">{solicitudSeleccionada.plazoMeses} meses</p>
-                  </div>
-                  <div className="md:col-span-2">
-                    <p className="text-sm text-gray-600">Propósito del Crédito</p>
-                    <p className="font-semibold text-gray-900">{solicitudSeleccionada.proposito}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600">¿Tiene Deudas?</p>
-                    <p className="font-semibold text-gray-900">
-                      {solicitudSeleccionada.tieneDeudas === "si" ? "Sí" : "No"}
-                    </p>
-                  </div>
-                  {solicitudSeleccionada.tieneDeudas === "si" && solicitudSeleccionada.montoDeudas && (
-                    <div>
-                      <p className="text-sm text-gray-600">Monto de Deudas</p>
-                      <p className="font-semibold text-red-600">
-                        {formatearMonto(solicitudSeleccionada.montoDeudas)}
-                      </p>
-                    </div>
+                  {esAutorizacionDatos(solicitudSeleccionada) ? (
+                    <>
+                      <div>
+                        <p className="text-sm text-gray-600">Fecha de Expedición del Documento</p>
+                        <p className="font-semibold text-gray-900">{solicitudSeleccionada.fechaExpedicionDocumento}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-600">Email</p>
+                        <p className="font-semibold text-gray-900">{solicitudSeleccionada.email}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-600">Celular de Negocio</p>
+                        <p className="font-semibold text-gray-900">{solicitudSeleccionada.celularNegocio}</p>
+                      </div>
+                      <div className="md:col-span-2">
+                        <p className="text-sm text-gray-600">Ciudad de Negocio</p>
+                        <p className="font-semibold text-gray-900">{solicitudSeleccionada.ciudadNegocio}</p>
+                      </div>
+                      <div className="md:col-span-2">
+                        <p className="text-sm text-gray-600">Dirección de Negocio</p>
+                        <p className="font-semibold text-gray-900">{solicitudSeleccionada.direccionNegocio}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-600">Autorización Tratamiento de Datos</p>
+                        <p className="font-semibold text-gray-900">
+                          {solicitudSeleccionada.autorizacionTratamientoDatos ? "Sí" : "No"}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-600">Autorización Contacto</p>
+                        <p className="font-semibold text-gray-900">
+                          {solicitudSeleccionada.autorizacionContacto ? "Sí" : "No"}
+                        </p>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div>
+                        <p className="text-sm text-gray-600">Estado Civil</p>
+                        <p className="font-semibold text-gray-900">
+                          {'estadoCivil' in solicitudSeleccionada ? solicitudSeleccionada.estadoCivil : 'N/A'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-600">Género</p>
+                        <p className="font-semibold text-gray-900">
+                          {'genero' in solicitudSeleccionada ? solicitudSeleccionada.genero : 'N/A'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-600">Email</p>
+                        <p className="font-semibold text-gray-900">{solicitudSeleccionada.email}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-600">Teléfono</p>
+                        <p className="font-semibold text-gray-900">{obtenerTelefono(solicitudSeleccionada)}</p>
+                      </div>
+                      <div className="md:col-span-2">
+                        <p className="text-sm text-gray-600">Dirección</p>
+                        <p className="font-semibold text-gray-900">
+                          {'direccion' in solicitudSeleccionada && 'ciudad' in solicitudSeleccionada && 'departamento' in solicitudSeleccionada
+                            ? `${solicitudSeleccionada.direccion}, ${solicitudSeleccionada.ciudad}, ${solicitudSeleccionada.departamento}`
+                            : 'N/A'}
+                        </p>
+                      </div>
+                    </>
                   )}
                 </div>
               </div>
 
-              {/* Referencias */}
-              <div>
-                <h3 className="text-xl font-bold text-[#1E3A5F] mb-4 flex items-center">
-                  <span className="w-8 h-8 bg-[#1E3A5F] rounded-full flex items-center justify-center text-white text-sm mr-3">
-                    4
-                  </span>
-                  Referencias Personales
-                </h3>
-                <div className="space-y-4 pl-11">
-                  <div className="p-4 bg-gray-50 rounded-lg">
-                    <p className="text-sm text-gray-600 mb-2">Referencia #1</p>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                      <div>
-                        <p className="text-xs text-gray-500">Nombre</p>
-                        <p className="font-semibold text-gray-900">{solicitudSeleccionada.refNombre1}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-gray-500">Teléfono</p>
-                        <p className="font-semibold text-gray-900">{solicitudSeleccionada.refTelefono1}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-gray-500">Relación</p>
-                        <p className="font-semibold text-gray-900">{solicitudSeleccionada.refRelacion1}</p>
-                      </div>
+              {/* Información Laboral - Solo para SolicitudCredito */}
+              {!esAutorizacionDatos(solicitudSeleccionada) && 'ocupacion' in solicitudSeleccionada && (
+                <div>
+                  <h3 className="text-xl font-bold text-[#1E3A5F] mb-4 flex items-center">
+                    <span className="w-8 h-8 bg-[#1E3A5F] rounded-full flex items-center justify-center text-white text-sm mr-3">
+                      2
+                    </span>
+                    Información Laboral
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pl-11">
+                    <div>
+                      <p className="text-sm text-gray-600">Ocupación</p>
+                      <p className="font-semibold text-gray-900">{solicitudSeleccionada.ocupacion}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">Empresa</p>
+                      <p className="font-semibold text-gray-900">{solicitudSeleccionada.empresa}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">Cargo</p>
+                      <p className="font-semibold text-gray-900">{solicitudSeleccionada.cargoActual}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">Tipo de Contrato</p>
+                      <p className="font-semibold text-gray-900">{solicitudSeleccionada.tipoContrato}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">Ingresos Mensuales</p>
+                      <p className="font-semibold text-green-600">
+                        {formatearMonto(solicitudSeleccionada.ingresosMensuales)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">Tiempo en el Empleo</p>
+                      <p className="font-semibold text-gray-900">{solicitudSeleccionada.tiempoEmpleo}</p>
                     </div>
                   </div>
-                  <div className="p-4 bg-gray-50 rounded-lg">
-                    <p className="text-sm text-gray-600 mb-2">Referencia #2</p>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                </div>
+              )}
+
+              {/* Información del Crédito - Solo para SolicitudCredito */}
+              {!esAutorizacionDatos(solicitudSeleccionada) && 'montoSolicitado' in solicitudSeleccionada && (
+                <div>
+                  <h3 className="text-xl font-bold text-[#1E3A5F] mb-4 flex items-center">
+                    <span className="w-8 h-8 bg-[#FF9B2D] rounded-full flex items-center justify-center text-white text-sm mr-3">
+                      {esAutorizacionDatos(solicitudSeleccionada) ? '2' : '3'}
+                    </span>
+                    Información del Crédito
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pl-11">
+                    <div>
+                      <p className="text-sm text-gray-600">Monto Solicitado</p>
+                      <p className="font-semibold text-green-600 text-xl">
+                        {formatearMonto(solicitudSeleccionada.montoSolicitado)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">Plazo</p>
+                      <p className="font-semibold text-gray-900">{solicitudSeleccionada.plazoMeses} meses</p>
+                    </div>
+                    <div className="md:col-span-2">
+                      <p className="text-sm text-gray-600">Propósito del Crédito</p>
+                      <p className="font-semibold text-gray-900">{solicitudSeleccionada.proposito}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">¿Tiene Deudas?</p>
+                      <p className="font-semibold text-gray-900">
+                        {solicitudSeleccionada.tieneDeudas === "si" ? "Sí" : "No"}
+                      </p>
+                    </div>
+                    {solicitudSeleccionada.tieneDeudas === "si" && solicitudSeleccionada.montoDeudas && (
                       <div>
-                        <p className="text-xs text-gray-500">Nombre</p>
-                        <p className="font-semibold text-gray-900">{solicitudSeleccionada.refNombre2}</p>
+                        <p className="text-sm text-gray-600">Monto de Deudas</p>
+                        <p className="font-semibold text-red-600">
+                          {formatearMonto(solicitudSeleccionada.montoDeudas)}
+                        </p>
                       </div>
-                      <div>
-                        <p className="text-xs text-gray-500">Teléfono</p>
-                        <p className="font-semibold text-gray-900">{solicitudSeleccionada.refTelefono2}</p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Referencias - Solo para SolicitudCredito */}
+              {!esAutorizacionDatos(solicitudSeleccionada) && 'refNombre1' in solicitudSeleccionada && (
+                <div>
+                  <h3 className="text-xl font-bold text-[#1E3A5F] mb-4 flex items-center">
+                    <span className="w-8 h-8 bg-[#1E3A5F] rounded-full flex items-center justify-center text-white text-sm mr-3">
+                      4
+                    </span>
+                    Referencias Personales
+                  </h3>
+                  <div className="space-y-4 pl-11">
+                    <div className="p-4 bg-gray-50 rounded-lg">
+                      <p className="text-sm text-gray-600 mb-2">Referencia #1</p>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div>
+                          <p className="text-xs text-gray-500">Nombre</p>
+                          <p className="font-semibold text-gray-900">{solicitudSeleccionada.refNombre1}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500">Teléfono</p>
+                          <p className="font-semibold text-gray-900">{solicitudSeleccionada.refTelefono1}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500">Relación</p>
+                          <p className="font-semibold text-gray-900">{solicitudSeleccionada.refRelacion1}</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-xs text-gray-500">Relación</p>
-                        <p className="font-semibold text-gray-900">{solicitudSeleccionada.refRelacion2}</p>
+                    </div>
+                    <div className="p-4 bg-gray-50 rounded-lg">
+                      <p className="text-sm text-gray-600 mb-2">Referencia #2</p>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div>
+                          <p className="text-xs text-gray-500">Nombre</p>
+                          <p className="font-semibold text-gray-900">{solicitudSeleccionada.refNombre2}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500">Teléfono</p>
+                          <p className="font-semibold text-gray-900">{solicitudSeleccionada.refTelefono2}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500">Relación</p>
+                          <p className="font-semibold text-gray-900">{solicitudSeleccionada.refRelacion2}</p>
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
-              </div>
+              )}
             </div>
 
             <div className="sticky bottom-0 bg-gray-50 px-8 py-6 rounded-b-2xl flex items-center justify-end space-x-4 border-t">

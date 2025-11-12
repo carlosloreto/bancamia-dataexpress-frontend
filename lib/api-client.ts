@@ -1,7 +1,8 @@
 // Cliente de API con axios para comunicación con el backend
-// Incluye interceptores para agregar tokens automáticamente
+// Incluye interceptores para agregar tokens automáticamente usando Firebase idToken
 
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
+import { auth } from './firebase';
 
 // Tipos para las respuestas de la API
 export interface ApiSuccessResponse<T = unknown> {
@@ -46,15 +47,25 @@ const apiClient: AxiosInstance = axios.create({
   },
 });
 
-// Interceptor de peticiones: agregar token automáticamente
+// Interceptor de peticiones: agregar idToken de Firebase automáticamente
 apiClient.interceptors.request.use(
-  (config: InternalAxiosRequestConfig) => {
-    // Obtener token del localStorage
+  async (config: InternalAxiosRequestConfig) => {
+    // Obtener idToken de Firebase
     if (typeof window !== 'undefined') {
-      const token = localStorage.getItem('authToken');
+      const user = auth.currentUser;
       
-      if (token && config.headers) {
-        config.headers.Authorization = `Bearer ${token}`;
+      if (user && config.headers) {
+        try {
+          // Obtener token (Firebase lo renueva automáticamente si es necesario)
+          const idToken = await user.getIdToken();
+          
+          if (idToken) {
+            config.headers.Authorization = `Bearer ${idToken}`;
+          }
+        } catch (error) {
+          console.error('❌ Error al obtener idToken:', error);
+          // Continuar sin token si hay error
+        }
       }
     }
     
@@ -71,18 +82,49 @@ apiClient.interceptors.response.use(
     // Si la respuesta es exitosa, retornarla
     return response;
   },
-  (error: AxiosError<ApiErrorResponse>) => {
+  async (error: AxiosError<ApiErrorResponse>) => {
     // Manejar errores HTTP
     if (error.response) {
       const status = error.response.status;
+      const errorData = error.response.data;
+      
+      // 400 - Error de validación: mostrar mensajes al usuario
+      if (status === 400) {
+        console.error('❌ Error 400: Error de validación');
+        
+        // Los errores de validación se manejan en el componente que hace la petición
+        // Aquí solo logueamos para debugging
+        if (errorData?.error?.details) {
+          console.error('Detalles del error:', errorData.error.details);
+        }
+      }
       
       // 401 - No autorizado: token inválido o expirado
       if (status === 401) {
         console.error('❌ Error 401: Token inválido o expirado');
         
-        // Limpiar token y redirigir a login
+        // Intentar renovar el token una vez
         if (typeof window !== 'undefined') {
-          localStorage.removeItem('authToken');
+          const user = auth.currentUser;
+          
+          if (user) {
+            try {
+              // Forzar renovación del token
+              const newToken = await user.getIdToken(true);
+              
+              if (newToken && error.config) {
+                // Reintentar la petición con el nuevo token
+                if (error.config.headers) {
+                  error.config.headers.Authorization = `Bearer ${newToken}`;
+                }
+                return apiClient.request(error.config);
+              }
+            } catch (refreshError) {
+              console.error('❌ Error al renovar token:', refreshError);
+            }
+          }
+          
+          // Si no se pudo renovar, limpiar y redirigir a login
           localStorage.removeItem('user');
           
           // Solo redirigir si no estamos ya en login/register

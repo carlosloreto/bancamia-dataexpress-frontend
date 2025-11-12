@@ -4,7 +4,8 @@ import {
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword,
   signOut as firebaseSignOut,
-  updateProfile
+  updateProfile,
+  User as FirebaseUser
 } from 'firebase/auth';
 import { auth } from './firebase';
 import { api } from './api-client';
@@ -36,12 +37,46 @@ export interface RegisterData {
  * 2. Frontend autentica con Firebase Auth (obtiene idToken)
  * 3. Frontend envía idToken a POST /api/v1/auth/login
  * 4. Backend valida el token y retorna user + token JWT
- * 5. Frontend guarda token y lo usa para peticiones protegidas
+ * 5. Frontend usa idToken de Firebase para peticiones protegidas
+ * 6. Firebase renueva automáticamente el token cuando expire
  */
 
 class AuthService {
+  private currentFirebaseUser: FirebaseUser | null = null;
+
   /**
-   * Login: Autentica con Firebase y luego con el backend
+   * Obtener el idToken actual de Firebase
+   * Renueva automáticamente si es necesario
+   */
+  async getIdToken(forceRefresh = false): Promise<string | null> {
+    if (typeof window === 'undefined') {
+      return null;
+    }
+
+    const user = auth.currentUser;
+    if (!user) {
+      return null;
+    }
+
+    try {
+      const idToken = await user.getIdToken(forceRefresh);
+      return idToken;
+    } catch (error) {
+      console.error('❌ Error al obtener idToken:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Establecer el usuario actual de Firebase
+   * Se llama desde AuthContext cuando cambia el estado de autenticación
+   */
+  setCurrentFirebaseUser(user: FirebaseUser | null): void {
+    this.currentFirebaseUser = user;
+  }
+
+  /**
+   * Login: Autentica con Firebase y luego sincroniza con el backend
    */
   async login(email: string, password: string): Promise<LoginResponse> {
     try {
@@ -58,7 +93,7 @@ class AuthService {
       
       console.log('🎫 Token de Firebase obtenido');
       
-      // 3. Enviar idToken al backend para obtener JWT
+      // 3. Enviar idToken al backend para sincronizar con Firestore
       const response = await api.post<LoginResponse>('/api/v1/auth/login', {
         idToken,
       });
@@ -67,11 +102,10 @@ class AuthService {
         throw new Error(response.error?.message || 'Error al autenticar con el backend');
       }
       
-      console.log('✅ Autenticado con el backend');
+      console.log('✅ Sincronizado con el backend');
       
-      // 4. Guardar token y usuario en localStorage
+      // 4. Guardar usuario en localStorage (el token se maneja automáticamente)
       if (typeof window !== 'undefined') {
-        localStorage.setItem('authToken', response.data.token);
         localStorage.setItem('user', JSON.stringify(response.data.user));
       }
       
@@ -106,6 +140,7 @@ class AuthService {
 
   /**
    * Register: Crea usuario en Firebase y luego en el backend
+   * Envía solo { email, password, displayName } según especificaciones
    */
   async register(data: RegisterData): Promise<User> {
     try {
@@ -121,31 +156,38 @@ class AuthService {
       
       console.log('✅ Usuario creado en Firebase:', firebaseUser.email);
       
-      // 2. Actualizar perfil con nombre
+      // 2. Actualizar perfil con nombre (displayName)
       if (data.name) {
         await updateProfile(firebaseUser, {
           displayName: data.name,
         });
       }
       
-      // 3. Obtener idToken
-      const idToken = await firebaseUser.getIdToken();
-      
-      // 4. Registrar en el backend
+      // 3. Registrar en el backend con solo { email, password, displayName }
+      // El idToken se envía en el header Authorization automáticamente por api-client
+      // api-client obtiene el token de auth.currentUser automáticamente
       const response = await api.post<{ user: User }>('/api/v1/auth/register', {
         email: data.email,
-        name: data.name,
-        firebaseUid: firebaseUser.uid,
-        idToken,
+        password: data.password,
+        displayName: data.name,
       });
       
       if (!response.success) {
         // Si falla el registro en el backend, eliminar usuario de Firebase
-        await firebaseUser.delete();
+        try {
+          await firebaseUser.delete();
+        } catch {
+          // Ignorar error al eliminar usuario
+        }
         throw new Error(response.error?.message || 'Error al registrar en el backend');
       }
       
       console.log('✅ Usuario registrado en el backend');
+      
+      // Guardar usuario en localStorage
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('user', JSON.stringify(response.data.user));
+      }
       
       return response.data.user;
     } catch (error: unknown) {
@@ -171,6 +213,35 @@ class AuthService {
   }
 
   /**
+   * Verify: Verifica el idToken con el backend
+   */
+  async verify(idToken: string): Promise<User> {
+    try {
+      console.log('🔍 Verificando token...');
+      
+      const response = await api.post<{ user: User }>('/api/v1/auth/verify', {
+        idToken,
+      });
+      
+      if (!response.success) {
+        throw new Error(response.error?.message || 'Error al verificar token');
+      }
+      
+      console.log('✅ Token verificado');
+      
+      // Actualizar usuario en localStorage
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('user', JSON.stringify(response.data.user));
+      }
+      
+      return response.data.user;
+    } catch (error) {
+      console.error('❌ Error al verificar token:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Logout: Cierra sesión en Firebase y limpia datos locales
    */
   async logout(): Promise<void> {
@@ -182,9 +253,10 @@ class AuthService {
       
       // 2. Limpiar datos locales
       if (typeof window !== 'undefined') {
-        localStorage.removeItem('authToken');
         localStorage.removeItem('user');
       }
+      
+      this.currentFirebaseUser = null;
       
       console.log('✅ Sesión cerrada');
     } catch (error) {
@@ -237,21 +309,10 @@ class AuthService {
   }
 
   /**
-   * Verificar si hay un token guardado
-   */
-  getToken(): string | null {
-    if (typeof window === 'undefined') {
-      return null;
-    }
-    
-    return localStorage.getItem('authToken');
-  }
-
-  /**
    * Verificar si el usuario está autenticado
    */
   isAuthenticated(): boolean {
-    return !!this.getToken() && !!this.getCurrentUser();
+    return auth.currentUser !== null && this.getCurrentUser() !== null;
   }
 }
 

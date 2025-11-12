@@ -28,7 +28,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Observar cambios en Firebase Auth
+  // Observar cambios en Firebase Auth y renovar tokens automáticamente
   useEffect(() => {
     console.log('🔄 Inicializando observador de autenticación...');
     
@@ -37,29 +37,49 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       setFirebaseUser(firebaseUser);
       
+      // Establecer usuario actual en authService
+      authService.setCurrentFirebaseUser(firebaseUser);
+      
       if (firebaseUser) {
         // Usuario autenticado en Firebase
-        // Verificar si tenemos token del backend
-        const token = authService.getToken();
-        const savedUser = authService.getCurrentUser();
-        
-        if (token && savedUser) {
-          // Ya tenemos token y usuario guardado
-          setUser(savedUser);
-          console.log('✅ Usuario restaurado desde localStorage');
-        } else {
-          // No tenemos token, intentar obtener perfil del backend
-          try {
-            console.log('🔄 Obteniendo perfil del backend...');
-            const profile = await authService.getProfile();
-            setUser(profile);
-            console.log('✅ Perfil obtenido del backend');
-          } catch (err) {
-            console.error('❌ Error al obtener perfil:', err);
-            // Si falla, limpiar sesión
-            await authService.logout();
-            setUser(null);
+        // Firebase renueva automáticamente el token cuando expire
+        // Obtener el token para asegurar que esté actualizado
+        try {
+          const idToken = await firebaseUser.getIdToken();
+          console.log('🎫 Token de Firebase obtenido/renovado');
+          
+          // Verificar si tenemos usuario guardado
+          const savedUser = authService.getCurrentUser();
+          
+          if (savedUser) {
+            // Ya tenemos usuario guardado, usarlo
+            setUser(savedUser);
+            console.log('✅ Usuario restaurado desde localStorage');
+          } else {
+            // No tenemos usuario guardado, obtener perfil del backend
+            try {
+              console.log('🔄 Obteniendo perfil del backend...');
+              const profile = await authService.getProfile();
+              setUser(profile);
+              console.log('✅ Perfil obtenido del backend');
+            } catch (err) {
+              console.error('❌ Error al obtener perfil:', err);
+              // Si falla, intentar verificar el token
+              try {
+                const verifiedUser = await authService.verify(idToken);
+                setUser(verifiedUser);
+                console.log('✅ Token verificado, usuario obtenido');
+              } catch (verifyErr) {
+                console.error('❌ Error al verificar token:', verifyErr);
+                // Si también falla la verificación, limpiar sesión
+                await authService.logout();
+                setUser(null);
+              }
+            }
           }
+        } catch (tokenError) {
+          console.error('❌ Error al obtener token:', tokenError);
+          setUser(null);
         }
       } else {
         // No hay usuario en Firebase

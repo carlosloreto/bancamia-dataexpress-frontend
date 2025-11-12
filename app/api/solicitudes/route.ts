@@ -10,7 +10,7 @@ import { NextRequest, NextResponse } from 'next/server';
 /**
  * GET /api/solicitudes - Obtener lista de solicitudes
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
   const timeoutMs = 60000; // 60 segundos para GET
   const startTime = Date.now();
   
@@ -37,8 +37,16 @@ export async function GET() {
     const apiUrlClean = apiUrl.replace(/\/$/, '');
     const url = `${apiUrlClean}/api/v1/solicitudes`;
 
+    // Obtener el token de autenticación del header del request del cliente
+    const authHeader = request.headers.get('authorization');
+    
     console.log(`[API Proxy GET] Obteniendo solicitudes de: ${url}`);
     console.log(`[API Proxy GET] Iniciando request a las ${new Date().toISOString()}`);
+    if (authHeader) {
+      console.log(`[API Proxy GET] Token de autenticación presente`);
+    } else {
+      console.warn(`[API Proxy GET] ⚠️ No se encontró token de autenticación en el header`);
+    }
 
     // Crear AbortController para manejar timeout
     const controller = new AbortController();
@@ -48,12 +56,20 @@ export async function GET() {
     }, timeoutMs);
 
     try {
+      // Preparar headers para el request al backend
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      };
+      
+      // Agregar token de autenticación si está presente
+      if (authHeader) {
+        headers['Authorization'] = authHeader;
+      }
+      
       // Enviar request GET a la API de Bancamia
       const response = await fetch(url, {
         method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         signal: controller.signal,
       });
 
@@ -225,13 +241,31 @@ export async function POST(request: NextRequest) {
     
     console.log(`[API Proxy] Iniciando request a las ${new Date().toISOString()}`);
 
+    // Obtener el token de autenticación del header del request del cliente
+    const authHeader = request.headers.get('authorization');
+    
+    if (authHeader) {
+      console.log(`[API Proxy POST] Token de autenticación presente`);
+    } else {
+      // Es normal que formularios públicos no tengan token, solo loguear como info
+      console.log(`[API Proxy POST] Formulario público sin token de autenticación (esto es normal)`);
+    }
+
     try {
+      // Preparar headers para el request al backend
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      };
+      
+      // Agregar token de autenticación si está presente
+      if (authHeader) {
+        headers['Authorization'] = authHeader;
+      }
+      
       // Enviar request a la API de Bancamia
       const response = await fetch(url, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify(datos),
         signal: controller.signal,
       });
