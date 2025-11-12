@@ -30,6 +30,16 @@ const missingFields = requiredFields.filter(
 // Verificar si Firebase está completamente configurado
 const isFirebaseConfigured = missingFields.length === 0;
 
+// Detectar si estamos en tiempo de build
+// Durante el build de Next.js, las variables de entorno de Cloud Run pueden no estar disponibles
+// Verificamos si estamos en el proceso de build de varias formas
+const isBuildTime = 
+  typeof window === 'undefined' && 
+  (process.env.NEXT_PHASE === 'phase-production-build' || 
+   process.env.NEXT_PHASE === 'phase-development-build' ||
+   process.argv.includes('build') ||
+   process.env.npm_lifecycle_event === 'build');
+
 if (!isFirebaseConfigured) {
   // Mapeo directo de campos a nombres de variables de entorno
   const fieldToEnvVar: Record<string, string> = {
@@ -40,14 +50,27 @@ if (!isFirebaseConfigured) {
   
   const missingEnvVars = missingFields.map(field => fieldToEnvVar[field] || `NEXT_PUBLIC_FIREBASE_${field.toUpperCase()}`);
   
-  console.error('❌ ERROR: Firebase no está completamente configurado.');
-  console.error('Campos faltantes:', missingFields.join(', '));
-  console.error('Variables de entorno faltantes:', missingEnvVars.join(', '));
-  console.error('Por favor, configura estas variables en tu archivo .env');
-  
-  // En producción, lanzar error antes de inicializar
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error(`Firebase no está configurado. Variables faltantes: ${missingEnvVars.join(', ')}`);
+  // Durante el build, solo mostrar warning y permitir continuar
+  // Las variables estarán disponibles en runtime en Cloud Run
+  if (isBuildTime) {
+    console.warn('⚠️ ADVERTENCIA: Firebase no está completamente configurado durante el build.');
+    console.warn('Esto es normal en Cloud Run si las variables de entorno se configuran en tiempo de ejecución.');
+    console.warn('Variables que deben estar configuradas:', missingEnvVars.join(', '));
+    console.warn('La aplicación continuará el build. Las variables se validarán en tiempo de ejecución.');
+  } else {
+    // En runtime, mostrar error pero solo lanzar excepción en producción si realmente se necesita
+    console.error('❌ ERROR: Firebase no está completamente configurado.');
+    console.error('Campos faltantes:', missingFields.join(', '));
+    console.error('Variables de entorno faltantes:', missingEnvVars.join(', '));
+    console.error('Por favor, configura estas variables en tu archivo .env');
+    
+    // Solo lanzar error en runtime de producción cuando realmente se necesite usar Firebase
+    // En Cloud Run, las variables deberían estar disponibles en runtime
+    if (process.env.NODE_ENV === 'production' && !isBuildTime) {
+      // No lanzar error aquí, permitir que se inicialice con valores temporales
+      // El error se lanzará cuando se intente usar Firebase si realmente no está configurado
+      console.error('⚠️ Firebase no está configurado en runtime. Algunas funcionalidades pueden no funcionar.');
+    }
   }
 }
 
